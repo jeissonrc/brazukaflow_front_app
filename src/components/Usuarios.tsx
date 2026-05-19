@@ -73,6 +73,7 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
@@ -151,6 +152,14 @@ export default function Usuarios() {
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim().toLowerCase());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleSort = (column: keyof Usuario) => {
     if (sortColumn === column) {
@@ -338,8 +347,9 @@ export default function Usuarios() {
 
   const filteredUsuarios = usuarios.filter(
     (usuario) =>
-      usuario.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.login.toLowerCase().includes(searchTerm.toLowerCase()),
+      !debouncedSearchTerm ||
+      usuario.nome.toLowerCase().includes(debouncedSearchTerm) ||
+      usuario.login.toLowerCase().includes(debouncedSearchTerm),
   );
 
   const sortedUsuarios = [...filteredUsuarios].sort((a, b) => {

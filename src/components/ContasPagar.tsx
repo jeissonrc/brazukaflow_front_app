@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Plus, Search, Filter, Download, Check, Eye, Copy, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Plus, Search, Filter, Download, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,53 +9,352 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Switch } from './ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Textarea } from './ui/textarea';
+import { getAuthToken } from '../lib/auth';
+
+type ApiCategory = {
+  id: number;
+  description: string;
+};
+
+type ApiAccountType = {
+  id: number;
+  description: string;
+  type?: 'Receita' | 'Despesa';
+  status?: boolean | number | string | null;
+  category?: ApiCategory;
+};
+
+type ApiPaymentType = {
+  id: number;
+  name: string;
+  description?: string | null;
+  status?: boolean | number | string | null;
+};
+
+type ApiOriginAccount = {
+  id: number;
+  description?: string | null;
+};
+
+type ApiAccountsPayable = {
+  id: number;
+  accountTypeId?: number | null;
+  nominalDate?: string | null;
+  dueDate?: string | null;
+  paymentDate?: string | null;
+  paymentTypeId?: number | null;
+  documentNumber?: string | null;
+  description?: string | null;
+  value?: number | string | null;
+  paid?: boolean | number | string | null;
+  originId?: number | null;
+  accountType?: ApiAccountType;
+  paymentType?: ApiPaymentType;
+};
 
 type ContaPagar = {
   id: number;
   descricao: string;
-  formaPgto: 1 | 2 | 3 | 4 | 5 | 6;
+  paymentTypeId: number | null;
+  formaPgto: string;
   dataNominal: string;
-  dataEfetiva: string;
+  dataVencimento: string;
+  dataPagamento: string;
   numeroDoc: string;
   valor: number;
   tipoConta: string;
   categoria: string;
+  accountTypeId: number | null;
+  originId: number | null;
+  origemConta: string;
   status: 'pendente' | 'pago' | 'vencido';
 };
 
-const mockOrigens = [
-  { id: 1, descricao: 'Escritório Imóveis Ltda', obs: 'Aluguel do escritório comercial', categoria: 1, pessoa: true },
-  { id: 2, descricao: 'Equipe Desenvolvimento', obs: 'Folha de pagamento mensal', categoria: 1, pessoa: true },
-  { id: 4, descricao: 'Energia', obs: 'Conta de luz', categoria: 1, pessoa: false },
-  { id: 5, descricao: 'Impostos DAS', obs: 'Simples Nacional', categoria: 1, pessoa: false },
-  { id: 7, descricao: 'Material Escritório Shop', obs: 'Fornecedor de material', categoria: 1, pessoa: true },
-];
+type ContaPagarForm = {
+  descricao: string;
+  accountTypeId: string;
+  paymentTypeId: string;
+  dataNominal: string;
+  dataVencimento: string;
+  numeroDoc: string;
+  valor: string;
+  status: 'pendente' | 'pago';
+};
 
-const mockData: ContaPagar[] = [
-  { id: 1, descricao: 'Aluguel Out/2025', formaPgto: 5, dataNominal: '2025-10-01', dataEfetiva: '2025-10-22', numeroDoc: 'ALG-001', valor: 8000, tipoConta: 'Aluguel e Condomínio', categoria: 'Despesas Operacionais', status: 'pendente' },
-  { id: 2, descricao: 'Conta de luz - Set/2025', formaPgto: 5, dataNominal: '2025-10-05', dataEfetiva: '2025-10-24', numeroDoc: 'LUZ-092', valor: 3200, tipoConta: 'Água, Luz e Telefone', categoria: 'Despesas Operacionais', status: 'pendente' },
-  { id: 3, descricao: 'Matéria prima diversos', formaPgto: 3, dataNominal: '2025-10-10', dataEfetiva: '2025-10-26', numeroDoc: 'NF-1234', valor: 12500, tipoConta: 'Material de Escritório', categoria: 'Despesas Operacionais', status: 'pendente' },
-  { id: 4, descricao: 'Folha de pagamento Set/2025', formaPgto: 1, dataNominal: '2025-09-25', dataEfetiva: '2025-10-05', numeroDoc: 'FP-092025', valor: 25000, tipoConta: 'Salários e Encargos', categoria: 'Despesas Operacionais', status: 'pago' },
-  { id: 5, descricao: 'Telefone Set/2025', formaPgto: 5, dataNominal: '2025-09-20', dataEfetiva: '2025-10-10', numeroDoc: 'TEL-345', valor: 850, tipoConta: 'Água, Luz e Telefone', categoria: 'Despesas Operacionais', status: 'vencido' },
-  { id: 6, descricao: 'DAS Out/2025', formaPgto: 3, dataNominal: '2025-10-01', dataEfetiva: '2025-10-30', numeroDoc: 'DAS-102025', valor: 4200, tipoConta: 'Impostos Federais', categoria: 'Impostos e Taxas', status: 'pendente' },
-];
+type MassForm = {
+  origemConta: string;
+  origemFornecedor: boolean;
+  descricao: string;
+  accountTypeId: string;
+  paymentTypeId: string;
+  valorTotal: string;
+  parcelas: string;
+  dataInicio: string;
+  observacoes: string;
+};
+
+const DEFAULT_FORM: ContaPagarForm = {
+  descricao: '',
+  accountTypeId: '',
+  paymentTypeId: '',
+  dataNominal: '',
+  dataVencimento: '',
+  numeroDoc: '',
+  valor: '',
+  status: 'pendente',
+};
+
+const DEFAULT_MASS_FORM: MassForm = {
+  origemConta: '',
+  origemFornecedor: true,
+  descricao: '',
+  accountTypeId: '',
+  paymentTypeId: '',
+  valorTotal: '',
+  parcelas: '',
+  dataInicio: '',
+  observacoes: '',
+};
+
+const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
+const isActiveStatus = (status: boolean | number | string | null | undefined) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+
+const normalizeDateInput = (value?: string | null) => {
+  if (!value) {
+    return '';
+  }
+  return value.slice(0, 10);
+};
+
+const formatDateBR = (value: string) => {
+  const [year, month, day] = value.split('-');
+  if (!year || !month || !day) {
+    return '-';
+  }
+  return `${day}/${month}/${year}`;
+};
+
+const formatCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+
+  const amount = Number(digits) / 100;
+  return amount.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+const formatCurrencyValue = (value: number) =>
+  value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const parseCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) / 100 : 0;
+};
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement | HTMLSelectElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
+
+const setDateMessage = (event: FormEvent<HTMLInputElement>, requiredMessage: string, rangeMessage: string) => {
+  const input = event.currentTarget;
+  input.setCustomValidity(input.validity.valueMissing ? requiredMessage : rangeMessage);
+};
+
+const setNumberMessage = (event: FormEvent<HTMLInputElement>, requiredMessage: string, rangeMessage: string) => {
+  const input = event.currentTarget;
+  input.setCustomValidity(input.validity.valueMissing ? requiredMessage : rangeMessage);
+};
+
+const getContaStatus = (conta: ApiAccountsPayable): ContaPagar['status'] => {
+  const isPaid = conta.paid === true || conta.paid === 1 || conta.paid === '1' || conta.paid === 'true';
+
+  if (isPaid) {
+    return 'pago';
+  }
+
+  const dueDate = normalizeDateInput(conta.dueDate);
+  if (dueDate && dueDate < new Date().toISOString().slice(0, 10)) {
+    return 'vencido';
+  }
+
+  return 'pendente';
+};
+
+const mapApiContaToConta = (conta: ApiAccountsPayable, originsById: Map<number, ApiOriginAccount> = new Map()): ContaPagar => ({
+  id: conta.id,
+  descricao: conta.description || '',
+  paymentTypeId: conta.paymentTypeId ?? null,
+  formaPgto: conta.paymentType?.name || '-',
+  dataNominal: normalizeDateInput(conta.nominalDate),
+  dataVencimento: normalizeDateInput(conta.dueDate),
+  dataPagamento: normalizeDateInput(conta.paymentDate),
+  numeroDoc: conta.documentNumber || '',
+  valor: Number(conta.value || 0),
+  tipoConta: conta.accountType?.description || '-',
+  categoria: conta.accountType?.category?.description || '-',
+  accountTypeId: conta.accountTypeId ?? null,
+  originId: conta.originId ?? null,
+  origemConta: conta.originId ? originsById.get(conta.originId)?.description || `Origem ${conta.originId}` : '',
+  status: getContaStatus(conta),
+});
 
 export default function ContasPagar() {
-  const [contas, setContas] = useState<ContaPagar[]>(mockData);
+  const [contas, setContas] = useState<ContaPagar[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFiltro, setStatusFiltro] = useState('todos');
+  const [paymentTypeFiltro, setPaymentTypeFiltro] = useState('todos');
+  const [accountTypeFiltro, setAccountTypeFiltro] = useState('todos');
+  const [originFiltro, setOriginFiltro] = useState('todas');
+  const [dataInicioFiltro, setDataInicioFiltro] = useState('');
+  const [dataFimFiltro, setDataFimFiltro] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [massDialogOpen, setMassDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedConta, setSelectedConta] = useState<ContaPagar | null>(null);
+  const [originDialogOpen, setOriginDialogOpen] = useState(false);
+  const [selectedOriginName, setSelectedOriginName] = useState('');
   const [editingConta, setEditingConta] = useState<ContaPagar | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [contaToDelete, setContaToDelete] = useState<number | null>(null);
+  const [accountTypes, setAccountTypes] = useState<ApiAccountType[]>([]);
+  const [paymentTypes, setPaymentTypes] = useState<ApiPaymentType[]>([]);
+  const [origins, setOrigins] = useState<ApiOriginAccount[]>([]);
+  const [formData, setFormData] = useState<ContaPagarForm>(DEFAULT_FORM);
+  const [massForm, setMassForm] = useState<MassForm>(DEFAULT_MASS_FORM);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isMassSaving, setIsMassSaving] = useState(false);
   const [pagarDialogOpen, setPagarDialogOpen] = useState(false);
-  const [contaToPagar, setContaToPagar] = useState<number | null>(null);
+  const [contaToPagar, setContaToPagar] = useState<ContaPagar | null>(null);
   const [sortColumn, setSortColumn] = useState<keyof ContaPagar | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const accountTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const paymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const massAccountTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const massPaymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    accountTypeRequiredRef.current?.setCustomValidity('');
+  }, [formData.accountTypeId]);
+
+  useEffect(() => {
+    paymentTypeRequiredRef.current?.setCustomValidity('');
+  }, [formData.paymentTypeId]);
+
+  useEffect(() => {
+    massAccountTypeRequiredRef.current?.setCustomValidity('');
+  }, [massForm.accountTypeId]);
+
+  useEffect(() => {
+    massPaymentTypeRequiredRef.current?.setCustomValidity('');
+  }, [massForm.paymentTypeId]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim().toLowerCase());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  const fetchContas = async () => {
+    const [response, originsResponse] = await Promise.all([
+      fetch(`${getApiBaseUrl()}/api/accounts-payable`, {
+        headers: getAuthHeaders(),
+      }),
+      fetch(`${getApiBaseUrl()}/api/origin-accounts`, {
+        headers: getAuthHeaders(),
+      }),
+    ]);
+
+    const result = await response.json();
+    const originsResult = await originsResponse.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar contas a pagar.');
+    }
+
+    if (!originsResponse.ok || !originsResult?.success) {
+      throw new Error(originsResult?.error || 'Erro ao carregar origens das contas.');
+    }
+
+    const originsData = (originsResult.data || []) as ApiOriginAccount[];
+    const originsById = new Map(originsData.map((origin) => [origin.id, origin]));
+    const items = ((result.data || []) as ApiAccountsPayable[]).map((conta) => mapApiContaToConta(conta, originsById));
+    setContas(items);
+    setOrigins(originsData);
+  };
+
+  const fetchAccountTypes = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/account-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar tipos de conta.');
+    }
+
+    const items = ((result.data || []) as ApiAccountType[]).filter(
+      (item) => item.type === 'Despesa' && isActiveStatus(item.status),
+    );
+    setAccountTypes(items);
+  };
+
+  const fetchPaymentTypes = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/payment-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar tipos de pagamento.');
+    }
+
+    const items = ((result.data || []) as ApiPaymentType[]).filter((item) => isActiveStatus(item.status));
+    setPaymentTypes(items);
+  };
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([fetchContas(), fetchAccountTypes(), fetchPaymentTypes()]);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar módulo de contas a pagar.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []);
 
   const handleSort = (column: keyof ContaPagar) => {
     if (sortColumn === column) {
@@ -69,24 +369,10 @@ export default function ContasPagar() {
     if (sortColumn !== column) {
       return <ArrowUpDown className="w-4 h-4 ml-1 inline" />;
     }
-    return sortDirection === 'asc' ? 
-      <ArrowUp className="w-4 h-4 ml-1 inline" /> : 
-      <ArrowDown className="w-4 h-4 ml-1 inline" />;
+    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4 ml-1 inline" /> : <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const getFormaPgtoLabel = (forma: number) => {
-    const formas: Record<number, string> = {
-      1: 'Pix',
-      2: 'Cartão de Crédito',
-      3: 'Título',
-      4: 'Dinheiro',
-      5: 'Depósito',
-      6: 'Cheque',
-    };
-    return formas[forma] || '-';
-  };
-
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: ContaPagar['status']) => {
     switch (status) {
       case 'pago':
         return <Badge className="bg-green-100 text-green-700">Pago</Badge>;
@@ -99,36 +385,47 @@ export default function ContasPagar() {
     }
   };
 
-  const handleMarcarPago = (id: number) => {
-    setContaToPagar(id);
-    setPagarDialogOpen(true);
-  };
-
-  const confirmMarcarPago = () => {
-    if (contaToPagar) {
-      setContas(contas.map(conta => 
-        conta.id === contaToPagar ? { ...conta, status: 'pago' as const } : conta
-      ));
-      setPagarDialogOpen(false);
-      setContaToPagar(null);
-    }
+  const openCreateDialog = () => {
+    setEditingConta(null);
+    setFormData(DEFAULT_FORM);
+    setDialogOpen(true);
   };
 
   const handleEdit = (conta: ContaPagar) => {
     setEditingConta(conta);
+    setFormData({
+      descricao: conta.descricao,
+      accountTypeId: conta.accountTypeId ? String(conta.accountTypeId) : '',
+      paymentTypeId: conta.paymentTypeId ? String(conta.paymentTypeId) : '',
+      dataNominal: conta.dataNominal,
+      dataVencimento: conta.dataVencimento,
+      numeroDoc: conta.numeroDoc,
+      valor: conta.valor ? formatCurrencyValue(conta.valor) : '',
+      status: conta.status === 'pago' ? 'pago' : 'pendente',
+    });
     setDialogOpen(true);
   };
 
-  const handleDeleteClick = (id: number) => {
-    setContaToDelete(id);
-    setDeleteDialogOpen(true);
-  };
+  const handleDelete = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir esta conta a pagar?')) {
+      return;
+    }
 
-  const confirmDelete = () => {
-    if (contaToDelete) {
-      setContas(contas.filter(c => c.id !== contaToDelete));
-      setDeleteDialogOpen(false);
-      setContaToDelete(null);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao excluir conta a pagar.');
+      }
+
+      setContas((prev) => prev.filter((item) => item.id !== id));
+      toast.success('Conta a pagar excluída com sucesso.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir conta a pagar.');
     }
   };
 
@@ -137,45 +434,296 @@ export default function ContasPagar() {
     setDetailsOpen(true);
   };
 
+  const handleViewOrigin = (conta: ContaPagar) => {
+    setSelectedOriginName(conta.origemConta || 'Origem não localizada.');
+    setOriginDialogOpen(true);
+  };
+
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingConta(null);
+    setFormData(DEFAULT_FORM);
   };
 
-  const filteredContas = contas.filter(conta =>
-    conta.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conta.numeroDoc.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const saveConta = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
 
-  // Aplicar ordenação
+    const valor = parseCurrencyInput(formData.valor);
+
+    if (
+      !formData.descricao.trim() ||
+      !formData.accountTypeId ||
+      !formData.paymentTypeId ||
+      !formData.valor.trim() ||
+      valor <= 0 ||
+      !formData.dataNominal ||
+      !formData.dataVencimento
+    ) {
+      toast.error('Preencha todos os campos obrigatórios. Somente o número do documento é opcional.');
+      return;
+    }
+
+    if (formData.dataNominal > formData.dataVencimento) {
+      toast.error('A data nominal não pode ser maior que a data de vencimento.');
+      return;
+    }
+
+    if (editingConta?.status === 'pago' && !confirm('Esta conta já está paga. Deseja salvar as alterações mesmo assim?')) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const isEditing = Boolean(editingConta);
+      const endpoint = isEditing ? `${getApiBaseUrl()}/api/accounts-payable/${editingConta!.id}` : `${getApiBaseUrl()}/api/accounts-payable`;
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const payload: Record<string, unknown> = {
+        description: formData.descricao.trim(),
+        accountTypeId: Number(formData.accountTypeId),
+        paymentTypeId: Number(formData.paymentTypeId),
+        nominalDate: formData.dataNominal,
+        dueDate: formData.dataVencimento,
+        value: valor,
+      };
+
+      if (!isEditing) {
+        payload.paid = false;
+      }
+
+      if (formData.numeroDoc.trim()) {
+        payload.documentNumber = formData.numeroDoc.trim();
+      }
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao salvar conta a pagar.');
+      }
+
+      const savedContaId = isEditing ? editingConta!.id : (result.data as ApiAccountsPayable).id;
+
+      if (isEditing && editingConta!.status === 'pago' && formData.status !== 'pago') {
+        const unpayResponse = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${savedContaId}/unpay`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({}),
+        });
+        const unpayResult = await unpayResponse.json();
+
+        if (!unpayResponse.ok || !unpayResult?.success) {
+          throw new Error(unpayResult?.error || 'Erro ao marcar conta como não paga.');
+        }
+      }
+
+      if (formData.status === 'pago' && (!isEditing || editingConta!.status !== 'pago')) {
+        const payPayload = formData.paymentTypeId ? { paymentTypeId: Number(formData.paymentTypeId) } : {};
+        const payResponse = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${savedContaId}/pay`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payPayload),
+        });
+        const payResult = await payResponse.json();
+
+        if (!payResponse.ok || !payResult?.success) {
+          throw new Error(payResult?.error || 'Erro ao marcar conta como paga.');
+        }
+      }
+
+      toast.success(isEditing ? 'Conta a pagar atualizada com sucesso.' : 'Conta a pagar cadastrada com sucesso.');
+      handleCloseDialog();
+      await fetchContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar conta a pagar.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCloseMassDialog = () => {
+    setMassDialogOpen(false);
+    setMassForm(DEFAULT_MASS_FORM);
+  };
+
+  const saveMassContas = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const valorTotal = parseCurrencyInput(massForm.valorTotal);
+    const parcelas = Number(massForm.parcelas);
+
+    if (
+      !massForm.origemConta.trim() ||
+      !massForm.descricao.trim() ||
+      !massForm.accountTypeId ||
+      !massForm.paymentTypeId ||
+      !massForm.valorTotal.trim() ||
+      valorTotal <= 0 ||
+      !Number.isInteger(parcelas) ||
+      parcelas < 1 ||
+      !massForm.dataInicio
+    ) {
+      toast.error('Preencha todos os campos obrigatórios para gerar as contas.');
+      return;
+    }
+
+    setIsMassSaving(true);
+
+    try {
+      const originResponse = await fetch(`${getApiBaseUrl()}/api/origin-accounts`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          description: massForm.origemConta.trim(),
+          obs: massForm.observacoes.trim() || null,
+          category: 1,
+          person: massForm.origemFornecedor,
+        }),
+      });
+      const originResult = await originResponse.json();
+
+      if (!originResponse.ok || !originResult?.success) {
+        throw new Error(originResult?.error || 'Erro ao registrar origem da conta.');
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/multiple`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          originId: Number(originResult.data.id),
+          description: massForm.descricao.trim(),
+          accountTypeId: Number(massForm.accountTypeId),
+          paymentTypeId: Number(massForm.paymentTypeId),
+          value: valorTotal,
+          installments: parcelas,
+          nominalDate: massForm.dataInicio,
+          dueDate: massForm.dataInicio,
+          obs: massForm.observacoes.trim() || null,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao gerar contas a pagar em massa.');
+      }
+
+      toast.success(`${parcelas} conta(s) a pagar gerada(s) com sucesso.`);
+      handleCloseMassDialog();
+      await fetchContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar contas a pagar em massa.');
+    } finally {
+      setIsMassSaving(false);
+    }
+  };
+
+  const handleMarcarPago = (conta: ContaPagar) => {
+    setContaToPagar(conta);
+    setPagarDialogOpen(true);
+  };
+
+  const confirmMarcarPago = async () => {
+    if (!contaToPagar) {
+      return;
+    }
+
+    try {
+      const payload = contaToPagar.paymentTypeId ? { paymentTypeId: contaToPagar.paymentTypeId } : {};
+      const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${contaToPagar.id}/pay`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao marcar conta como paga.');
+      }
+
+      toast.success('Conta marcada como paga.');
+      setPagarDialogOpen(false);
+      setContaToPagar(null);
+      await fetchContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao marcar conta como paga.');
+    }
+  };
+
+  const clearFilters = () => {
+    setStatusFiltro('todos');
+    setPaymentTypeFiltro('todos');
+    setAccountTypeFiltro('todos');
+    setOriginFiltro('todas');
+    setDataInicioFiltro('');
+    setDataFimFiltro('');
+  };
+
+  const clearSearchAndFilters = () => {
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    clearFilters();
+  };
+
+  const hasAdvancedFilters =
+    statusFiltro !== 'todos' ||
+    paymentTypeFiltro !== 'todos' ||
+    accountTypeFiltro !== 'todos' ||
+    originFiltro !== 'todas' ||
+    Boolean(dataInicioFiltro) ||
+    Boolean(dataFimFiltro);
+
+  const originIdsWithAccounts = new Set(contas.map((conta) => conta.originId).filter((id): id is number => Boolean(id)));
+  const originsWithAccounts = origins.filter((origin) => originIdsWithAccounts.has(origin.id));
+
+  const filteredContas = contas.filter((conta) => {
+    const matchesSearch =
+      !debouncedSearchTerm ||
+      conta.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+      conta.numeroDoc.toLowerCase().includes(debouncedSearchTerm) ||
+      conta.tipoConta.toLowerCase().includes(debouncedSearchTerm) ||
+      conta.formaPgto.toLowerCase().includes(debouncedSearchTerm) ||
+      conta.origemConta.toLowerCase().includes(debouncedSearchTerm);
+
+    const matchesStatus = statusFiltro === 'todos' || conta.status === statusFiltro;
+    const matchesPaymentType = paymentTypeFiltro === 'todos' || String(conta.paymentTypeId) === paymentTypeFiltro;
+    const matchesAccountType = accountTypeFiltro === 'todos' || String(conta.accountTypeId) === accountTypeFiltro;
+    const matchesOrigin = originFiltro === 'todas' || String(conta.originId) === originFiltro;
+    const matchesStartDate = !dataInicioFiltro || (conta.dataVencimento && conta.dataVencimento >= dataInicioFiltro);
+    const matchesEndDate = !dataFimFiltro || (conta.dataVencimento && conta.dataVencimento <= dataFimFiltro);
+
+    return matchesSearch && matchesStatus && matchesPaymentType && matchesAccountType && matchesOrigin && matchesStartDate && matchesEndDate;
+  });
+
   const sortedContas = [...filteredContas].sort((a, b) => {
     if (!sortColumn) return 0;
-    
+
     const aValue = a[sortColumn];
     const bValue = b[sortColumn];
-    
+
     if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
     if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
     return 0;
   });
 
-  const totalPendente = contas.filter(c => c.status === 'pendente').reduce((acc, c) => acc + c.valor, 0);
-  const totalPago = contas.filter(c => c.status === 'pago').reduce((acc, c) => acc + c.valor, 0);
-  const totalVencido = contas.filter(c => c.status === 'vencido').reduce((acc, c) => acc + c.valor, 0);
+  const totalPendente = contas.filter((c) => c.status === 'pendente').reduce((acc, c) => acc + c.valor, 0);
+  const totalPago = contas.filter((c) => c.status === 'pago').reduce((acc, c) => acc + c.valor, 0);
+  const totalVencido = contas.filter((c) => c.status === 'vencido').reduce((acc, c) => acc + c.valor, 0);
 
   return (
     <div className="space-y-6">
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-gray-600">Pendente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-yellow-600">
-              {totalPendente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </div>
-            <p className="text-gray-500">{contas.filter(c => c.status === 'pendente').length} contas</p>
+            <div className="text-yellow-600">{totalPendente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500">{contas.filter((c) => c.status === 'pendente').length} contas</p>
           </CardContent>
         </Card>
 
@@ -184,10 +732,8 @@ export default function ContasPagar() {
             <CardTitle className="text-gray-600">Pago</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">
-              {totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </div>
-            <p className="text-gray-500">{contas.filter(c => c.status === 'pago').length} contas</p>
+            <div className="text-green-600">{totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500">{contas.filter((c) => c.status === 'pago').length} contas</p>
           </CardContent>
         </Card>
 
@@ -196,15 +742,12 @@ export default function ContasPagar() {
             <CardTitle className="text-gray-600">Vencido</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">
-              {totalVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </div>
-            <p className="text-gray-500">{contas.filter(c => c.status === 'vencido').length} contas</p>
+            <div className="text-red-600">{totalVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500">{contas.filter((c) => c.status === 'vencido').length} contas</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Barra de Ações */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4 justify-between">
@@ -212,23 +755,29 @@ export default function ContasPagar() {
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Buscar por descrição ou número do doc..."
+                  placeholder="Buscar contas a pagar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
-              <Button variant="outline" className="sm:w-auto">
+              <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={() => setShowFilters((prev) => !prev)}>
                 <Filter className="w-4 h-4 mr-2" />
                 Filtrar
               </Button>
+              {(searchTerm || hasAdvancedFilters) && (
+                <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={clearSearchAndFilters}>
+                  <X className="w-4 h-4 mr-2" />
+                  Limpar
+                </Button>
+              )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="sm:w-auto">
+              <Button variant="outline" className="sm:w-auto" disabled>
                 <Download className="w-4 h-4 mr-2" />
                 Exportar
               </Button>
-              <Dialog open={massDialogOpen} onOpenChange={setMassDialogOpen}>
+              <Dialog open={massDialogOpen} onOpenChange={(open) => (open ? setMassDialogOpen(true) : handleCloseMassDialog())}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
                     <Copy className="w-4 h-4 mr-2" />
@@ -236,231 +785,466 @@ export default function ContasPagar() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Gerar Contas a Pagar em Massa</DialogTitle>
-                    <DialogDescription>Gere múltiplas contas a partir de uma origem</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                    <div className="col-span-full space-y-2">
-                      <Label htmlFor="origem">Origem da Conta</Label>
-                      <Select>
-                        <SelectTrigger id="origem">
-                          <SelectValue placeholder="Selecione a origem" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {mockOrigens.map(origem => (
-                            <SelectItem key={origem.id} value={origem.id.toString()}>
-                              {origem.descricao} - {origem.pessoa ? 'Fornecedor' : 'Despesa'}
-                            </SelectItem>
+                  <form onSubmit={saveMassContas}>
+                    <DialogHeader>
+                      <DialogTitle>Gerar Contas a Pagar em Massa</DialogTitle>
+                      <DialogDescription>Gere múltiplas contas a partir de uma origem</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="origemMassa">Origem da Conta <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="origemMassa"
+                          name="origemMassa"
+                          required
+                          placeholder="Ex: Escritório Imóveis Ltda"
+                          value={massForm.origemConta}
+                          onInvalid={(e) => setRequiredMessage(e, 'Informe a origem da conta.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, origemConta: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="origemFornecedor">Tipo da Origem</Label>
+                        <Select
+                          value={massForm.origemFornecedor ? 'fornecedor' : 'operacao'}
+                          onValueChange={(value) => setMassForm((prev) => ({ ...prev, origemFornecedor: value === 'fornecedor' }))}
+                        >
+                          <SelectTrigger id="origemFornecedor">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fornecedor">Fornecedor</SelectItem>
+                            <SelectItem value="operacao">Operação</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-full space-y-2">
+                        <Label htmlFor="descricaoMassa">Descrição <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="descricaoMassa"
+                          name="descricaoMassa"
+                          required
+                          placeholder="Descrição das contas"
+                          value={massForm.descricao}
+                          onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição das contas.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, descricao: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tipoContaMassa">Tipo de Conta <span className="text-red-600">*</span></Label>
+                        <Select value={massForm.accountTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, accountTypeId: value }))}>
+                          <SelectTrigger id="tipoContaMassa" aria-required="true">
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accountTypes.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.description} {item.category?.description ? `- ${item.category.description}` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <select
+                          ref={massAccountTypeRequiredRef}
+                          required
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="sr-only"
+                          value={massForm.accountTypeId}
+                          onInvalid={(e) => setRequiredMessage(e, 'Selecione o tipo de conta.')}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, accountTypeId: e.target.value }))}
+                        >
+                          <option value="">Selecione o tipo</option>
+                          {accountTypes.map((item) => (
+                            <option key={item.id} value={String(item.id)}>
+                              {item.description}
+                            </option>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="formaPgtoMassa">Forma de Pagamento <span className="text-red-600">*</span></Label>
+                        <Select value={massForm.paymentTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, paymentTypeId: value }))}>
+                          <SelectTrigger id="formaPgtoMassa" aria-required="true">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentTypes.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <select
+                          ref={massPaymentTypeRequiredRef}
+                          required
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="sr-only"
+                          value={massForm.paymentTypeId}
+                          onInvalid={(e) => setRequiredMessage(e, 'Selecione a forma de pagamento.')}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, paymentTypeId: e.target.value }))}
+                        >
+                          <option value="">Selecione</option>
+                          {paymentTypes.map((item) => (
+                            <option key={item.id} value={String(item.id)}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valorMassa">Valor Total <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="valorMassa"
+                          name="valorMassa"
+                          required
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0,00"
+                          value={massForm.valorTotal}
+                          onInvalid={(e) => setRequiredMessage(e, 'Informe o valor total.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, valorTotal: formatCurrencyInput(e.target.value) }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="parcelas">Quantidade de Parcelas <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="parcelas"
+                          name="parcelas"
+                          required
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="Ex: 3"
+                          value={massForm.parcelas}
+                          onInvalid={(e) => setNumberMessage(e, 'Informe a quantidade de parcelas.', 'Informe pelo menos 1 parcela.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, parcelas: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dataInicio">Data Primeira Parcela (Efetiva) <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="dataInicio"
+                          name="dataInicio"
+                          required
+                          type="date"
+                          value={massForm.dataInicio}
+                          onInvalid={(e) => setDateMessage(e, 'Informe a data da primeira parcela.', 'Informe uma data válida.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, dataInicio: e.target.value }))}
+                        />
+                      </div>
+                      <div className="col-span-full space-y-2">
+                        <Label htmlFor="obsMassa">Observações</Label>
+                        <Textarea
+                          id="obsMassa"
+                          name="obsMassa"
+                          placeholder="Observações"
+                          rows={3}
+                          value={massForm.observacoes}
+                          onChange={(e) => setMassForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                        />
+                      </div>
+                      <div className="col-span-full p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-blue-800">
+                          <strong>Exemplo:</strong> Se informar valor total de R$ 9.000,00 e 3 parcelas, serão geradas 3 contas de R$ 3.000,00 cada, com vencimentos mensais a partir da data informada.
+                        </p>
+                      </div>
                     </div>
-                    <div className="col-span-full space-y-2">
-                      <Label htmlFor="descricaoMassa">Descrição</Label>
-                      <Input id="descricaoMassa" placeholder="Descrição das contas" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="formaPgtoMassa">Forma de Pagamento</Label>
-                      <Select>
-                        <SelectTrigger id="formaPgtoMassa">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1 - Pix</SelectItem>
-                          <SelectItem value="2">2 - Cartão de Crédito</SelectItem>
-                          <SelectItem value="3">3 - Título</SelectItem>
-                          <SelectItem value="4">4 - Dinheiro</SelectItem>
-                          <SelectItem value="5">5 - Depósito</SelectItem>
-                          <SelectItem value="6">6 - Cheque</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="valorMassa">Valor Total</Label>
-                      <Input id="valorMassa" type="number" step="0.01" placeholder="0,00" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="parcelas">Quantidade de Parcelas</Label>
-                      <Input id="parcelas" type="number" min="1" placeholder="Ex: 3" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="dataInicio">Data Primeira Parcela (Efetiva)</Label>
-                      <Input id="dataInicio" type="date" />
-                    </div>
-                    <div className="col-span-full space-y-2">
-                      <Label htmlFor="obsMassa">Observações</Label>
-                      <Textarea id="obsMassa" placeholder="Observações" rows={3} />
-                    </div>
-                    <div className="col-span-full p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-blue-800">
-                        <strong>Exemplo:</strong> Se informar valor total de R$ 3.000,00 e 3 parcelas, 
-                        serão geradas 3 contas de R$ 1.000,00 cada, com vencimentos mensais a partir da data informada.
-                      </p>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setMassDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setMassDialogOpen(false)}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Gerar Contas
-                    </Button>
-                  </DialogFooter>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={handleCloseMassDialog}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isMassSaving}>
+                        <Copy className="w-4 h-4 mr-2" />
+                        {isMassSaving ? 'Gerando...' : 'Gerar Contas'}
+                      </Button>
+                    </DialogFooter>
+                  </form>
                 </DialogContent>
               </Dialog>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700">
+                  <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Conta
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>{editingConta ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</DialogTitle>
-                    <DialogDescription>
-                      {editingConta ? 'Altere as informações da conta' : 'Cadastre uma nova conta a pagar no sistema'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                    <div className="col-span-full space-y-2">
-                      <Label htmlFor="descricao">Descrição</Label>
-                      <Input 
-                        id="descricao" 
-                        placeholder="Descrição da conta" 
-                        defaultValue={editingConta?.descricao}
-                      />
+                  <form onSubmit={saveConta}>
+                    <DialogHeader>
+                      <DialogTitle>{editingConta ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</DialogTitle>
+                      <DialogDescription>
+                        {editingConta ? 'Altere as informações da conta' : 'Cadastre uma nova conta a pagar no sistema'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                      <div className="col-span-full space-y-2">
+                        <Label htmlFor="descricao">Descrição <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="descricao"
+                          name="descricao"
+                          required
+                          placeholder="Descrição da conta"
+                          value={formData.descricao}
+                          onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição da conta.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tipoConta">Tipo de Conta <span className="text-red-600">*</span></Label>
+                        <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
+                          <SelectTrigger id="tipoConta" aria-required="true">
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accountTypes.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.description} {item.category?.description ? `- ${item.category.description}` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <select
+                          ref={accountTypeRequiredRef}
+                          required
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="sr-only"
+                          value={formData.accountTypeId}
+                          onInvalid={(e) => setRequiredMessage(e, 'Selecione o tipo de conta.')}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, accountTypeId: e.target.value }))}
+                        >
+                          <option value="">Selecione o tipo</option>
+                          {accountTypes.map((item) => (
+                            <option key={item.id} value={String(item.id)}>
+                              {item.description}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="formaPgto">Forma de Pagamento <span className="text-red-600">*</span></Label>
+                        <Select value={formData.paymentTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentTypeId: value }))}>
+                          <SelectTrigger id="formaPgto" aria-required="true">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentTypes.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <select
+                          ref={paymentTypeRequiredRef}
+                          required
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="sr-only"
+                          value={formData.paymentTypeId}
+                          onInvalid={(e) => setRequiredMessage(e, 'Selecione a forma de pagamento.')}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, paymentTypeId: e.target.value }))}
+                        >
+                          <option value="">Selecione</option>
+                          {paymentTypes.map((item) => (
+                            <option key={item.id} value={String(item.id)}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="numeroDoc">Número do Documento</Label>
+                        <Input
+                          id="numeroDoc"
+                          name="numeroDoc"
+                          placeholder="Ex: NF-1234"
+                          value={formData.numeroDoc}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, numeroDoc: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valor">Valor <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="valor"
+                          name="valor"
+                          required
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0,00"
+                          value={formData.valor}
+                          onInvalid={(e) => setRequiredMessage(e, 'Informe o valor da conta.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, valor: formatCurrencyInput(e.target.value) }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dataNominal">Data Nominal (Emissão) <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="dataNominal"
+                          name="dataNominal"
+                          required
+                          type="date"
+                          value={formData.dataNominal}
+                          max={formData.dataVencimento || undefined}
+                          onInvalid={(e) => setDateMessage(e, 'Informe a data nominal.', 'A data nominal não pode ser maior que a data de vencimento.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, dataNominal: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dataVencimento">Data Vencimento <span className="text-red-600">*</span></Label>
+                        <Input
+                          id="dataVencimento"
+                          name="dataVencimento"
+                          required
+                          type="date"
+                          value={formData.dataVencimento}
+                          min={formData.dataNominal || undefined}
+                          onInvalid={(e) => setDateMessage(e, 'Informe a data de vencimento.', 'A data de vencimento não pode ser menor que a data nominal.')}
+                          onInput={clearFieldValidity}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, dataVencimento: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="pago">Status da Conta <span className="text-red-600">*</span></Label>
+                        <div className="flex h-10 items-center gap-3 rounded-md border border-input px-3">
+                          <Switch
+                            id="pago"
+                            checked={formData.status === 'pago'}
+                            onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, status: checked ? 'pago' : 'pendente' }))}
+                          />
+                          <Label htmlFor="pago" className={formData.status === 'pago' ? 'text-green-700' : 'text-gray-600'}>
+                            {formData.status === 'pago' ? 'Pago' : 'Não pago'}
+                          </Label>
+                        </div>
+                        <input type="hidden" name="status" required value={formData.status} />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="formaPgto">Forma de Pagamento</Label>
-                      <Select defaultValue={editingConta?.formaPgto.toString()}>
-                        <SelectTrigger id="formaPgto">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1 - Pix</SelectItem>
-                          <SelectItem value="2">2 - Cartão de Crédito</SelectItem>
-                          <SelectItem value="3">3 - Título</SelectItem>
-                          <SelectItem value="4">4 - Dinheiro</SelectItem>
-                          <SelectItem value="5">5 - Depósito</SelectItem>
-                          <SelectItem value="6">6 - Cheque</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="numeroDoc">Número do Documento</Label>
-                      <Input 
-                        id="numeroDoc" 
-                        placeholder="Ex: NF-1234" 
-                        defaultValue={editingConta?.numeroDoc}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="dataNominal">Data Nominal (Emissão)</Label>
-                      <Input 
-                        id="dataNominal" 
-                        type="date" 
-                        defaultValue={editingConta?.dataNominal}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="dataEfetiva">Data Efetiva (Vencimento)</Label>
-                      <Input 
-                        id="dataEfetiva" 
-                        type="date" 
-                        defaultValue={editingConta?.dataEfetiva}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="valor">Valor</Label>
-                      <Input 
-                        id="valor" 
-                        type="number" 
-                        step="0.01" 
-                        placeholder="0,00" 
-                        defaultValue={editingConta?.valor}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tipoConta">Tipo de Conta</Label>
-                      <Select defaultValue={editingConta?.tipoConta}>
-                        <SelectTrigger id="tipoConta">
-                          <SelectValue placeholder="Selecione o tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Salários e Encargos">Salários e Encargos - Desp. Operacionais</SelectItem>
-                          <SelectItem value="Aluguel e Condomínio">Aluguel e Condomínio - Desp. Operacionais</SelectItem>
-                          <SelectItem value="Água, Luz e Telefone">Água, Luz e Telefone - Desp. Operacionais</SelectItem>
-                          <SelectItem value="Material de Escritório">Material de Escritório - Desp. Operacionais</SelectItem>
-                          <SelectItem value="Impostos Federais">Impostos Federais - Impostos e Taxas</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="status">Status da Conta</Label>
-                      <Select defaultValue={editingConta?.status || 'pendente'}>
-                        <SelectTrigger id="status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pendente">Pendente</SelectItem>
-                          <SelectItem value="pago">Pago</SelectItem>
-                          <SelectItem value="vencido">Vencido</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={handleCloseDialog}>
-                      Cancelar
-                    </Button>
-                    <Button className="bg-green-600 hover:bg-green-700" onClick={handleCloseDialog}>
-                      {editingConta ? 'Atualizar' : 'Salvar'}
-                    </Button>
-                  </DialogFooter>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSaving}>
+                        {isSaving ? 'Salvando...' : editingConta ? 'Atualizar' : 'Salvar'}
+                      </Button>
+                    </DialogFooter>
+                  </form>
                 </DialogContent>
               </Dialog>
             </div>
           </div>
+
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="statusFiltro">Status</Label>
+                <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+                  <SelectTrigger id="statusFiltro">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="vencido">Vencido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentTypeFiltro">Forma Pgto</Label>
+                <Select value={paymentTypeFiltro} onValueChange={setPaymentTypeFiltro}>
+                  <SelectTrigger id="paymentTypeFiltro">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas</SelectItem>
+                    {paymentTypes.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accountTypeFiltro">Tipo de Conta</Label>
+                <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
+                  <SelectTrigger id="accountTypeFiltro">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {accountTypes.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        {item.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="originFiltro">Origem</Label>
+                <Select value={originFiltro} onValueChange={setOriginFiltro}>
+                  <SelectTrigger id="originFiltro">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {originsWithAccounts.map((origin) => (
+                      <SelectItem key={origin.id} value={String(origin.id)}>
+                        {origin.description || `Origem ${origin.id}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dataInicioFiltro">Vencimento Inicial</Label>
+                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dataFimFiltro">Vencimento Final</Label>
+                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Tabela */}
       <Card>
         <CardContent className="pt-6 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('id')}
-                >
+                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
                   Código {getSortIcon('id')}
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('descricao')}
-                >
+                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
                   Descrição {getSortIcon('descricao')}
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('dataEfetiva')}
-                >
-                  Data Vcto {getSortIcon('dataEfetiva')}
+                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataVencimento')}>
+                  Data Vcto {getSortIcon('dataVencimento')}
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('valor')}
-                >
+                <TableHead>Forma Pgto</TableHead>
+                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
                   Valor {getSortIcon('valor')}
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('status')}
-                >
+                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
                   Status {getSortIcon('status')}
                 </TableHead>
                 <TableHead className="text-center">Marcar Pago</TableHead>
@@ -468,69 +1252,80 @@ export default function ContasPagar() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedContas.map((conta) => (
-                <TableRow key={conta.id}>
-                  <TableCell>{conta.id}</TableCell>
-                  <TableCell>{conta.descricao}</TableCell>
-                  <TableCell>
-                    {new Date(conta.dataEfetiva).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    {conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(conta.status)}</TableCell>
-                  <TableCell className="text-center">
-                    {conta.status === 'pendente' || conta.status === 'vencido' ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleMarcarPago(conta.id)}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        title="Marcar como Pago"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleViewDetails(conta)}
-                        title="Visualizar"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(conta)}
-                        title="Editar"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteClick(conta.id)}
-                        className="text-red-600 hover:text-red-700"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                    Carregando contas a pagar...
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+              {!isLoading && sortedContas.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                    Nenhuma conta a pagar encontrada.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading &&
+                sortedContas.map((conta) => (
+                  <TableRow key={conta.id}>
+                    <TableCell>{conta.id}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{conta.descricao || '-'}</span>
+                        {conta.originId && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                            title="Ver origem da conta"
+                            onClick={() => handleViewOrigin(conta)}
+                          >
+                            <Info className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{conta.dataVencimento ? formatDateBR(conta.dataVencimento) : '-'}</TableCell>
+                    <TableCell>{conta.formaPgto}</TableCell>
+                    <TableCell>{conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                    <TableCell>{getStatusBadge(conta.status)}</TableCell>
+                    <TableCell className="text-center">
+                      {conta.status === 'pendente' || conta.status === 'vencido' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMarcarPago(conta)}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          title="Marcar como Pago"
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleViewDetails(conta)} title="Visualizar">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleEdit(conta)} title="Editar">
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="text-red-600 hover:text-red-700" title="Excluir">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Dialog de Detalhes */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -550,47 +1345,47 @@ export default function ContasPagar() {
               </div>
               <div>
                 <Label>Descrição</Label>
-                <p className="text-gray-900">{selectedConta.descricao}</p>
+                <p className="text-gray-900">{selectedConta.descricao || '-'}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Forma de Pagamento</Label>
-                  <p className="text-gray-900">{getFormaPgtoLabel(selectedConta.formaPgto)}</p>
+                  <p className="text-gray-900">{selectedConta.formaPgto}</p>
                 </div>
                 <div>
                   <Label>Número do Documento</Label>
-                  <p className="text-gray-900">{selectedConta.numeroDoc}</p>
+                  <p className="text-gray-900">{selectedConta.numeroDoc || '-'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Data Nominal (Emissão)</Label>
-                  <p className="text-gray-900">
-                    {new Date(selectedConta.dataNominal).toLocaleDateString('pt-BR')}
-                  </p>
+                  <p className="text-gray-900">{selectedConta.dataNominal ? formatDateBR(selectedConta.dataNominal) : '-'}</p>
                 </div>
                 <div>
-                  <Label>Data Efetiva (Vencimento)</Label>
-                  <p className="text-gray-900">
-                    {new Date(selectedConta.dataEfetiva).toLocaleDateString('pt-BR')}
-                  </p>
+                  <Label>Data Vencimento</Label>
+                  <p className="text-gray-900">{selectedConta.dataVencimento ? formatDateBR(selectedConta.dataVencimento) : '-'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Valor</Label>
-                  <p className="text-gray-900">
-                    {selectedConta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </p>
+                  <p className="text-gray-900">{selectedConta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                 </div>
+                <div>
+                  <Label>Data Pagamento</Label>
+                  <p className="text-gray-900">{selectedConta.dataPagamento ? formatDateBR(selectedConta.dataPagamento) : '-'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Tipo de Conta</Label>
                   <p className="text-gray-900">{selectedConta.tipoConta}</p>
                 </div>
-              </div>
-              <div>
-                <Label>Categoria</Label>
-                <p className="text-gray-900">{selectedConta.categoria}</p>
+                <div>
+                  <Label>Categoria</Label>
+                  <p className="text-gray-900">{selectedConta.categoria}</p>
+                </div>
               </div>
             </div>
           )}
@@ -602,31 +1397,30 @@ export default function ContasPagar() {
         </DialogContent>
       </Dialog>
 
-      {/* Alert Dialog - Confirmação de Exclusão */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita e todos os dados relacionados serão permanentemente removidos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Confirmar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={originDialogOpen} onOpenChange={setOriginDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Origem da Conta</DialogTitle>
+            <DialogDescription>Conta gerada a partir da origem abaixo.</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+            <Label>Origem</Label>
+            <p className="mt-1 text-gray-900">{selectedOriginName}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOriginDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Alert Dialog - Confirmação Marcar como Pago */}
       <AlertDialog open={pagarDialogOpen} onOpenChange={setPagarDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja marcar esta conta como paga? Esta ação irá atualizar o status da conta.
+              Tem certeza que deseja marcar esta conta como paga? Esta ação irá atualizar o status e registrar a data de pagamento.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

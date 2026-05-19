@@ -1,8 +1,9 @@
 import { toast } from 'sonner@2.0.3';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState } from 'react';
-import { Home, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut } from 'lucide-react';
+import { Home as HomeIcon, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut } from 'lucide-react';
 import { Button } from './components/ui/button';
+import Home from './components/Home';
 import DashboardOverview from './components/DashboardOverview';
 import DashboardSimples from './components/DashboardSimples';
 import ContasReceber from './components/ContasReceber';
@@ -18,7 +19,7 @@ import TiposContas from './components/TiposContas';
 import Categorias from './components/Categorias';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './lib/auth';
 
-type MenuOption = 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'usuarios' | 'tipos-contas' | 'categorias';
+type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'usuarios' | 'tipos-contas' | 'categorias';
 
 type AuthUser = {
   id: number;
@@ -31,7 +32,7 @@ type AuthUser = {
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [activeMenu, setActiveMenu] = useState<MenuOption>('dashboard-simples');
+  const [activeMenu, setActiveMenu] = useState<MenuOption>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -65,13 +66,12 @@ export default function App() {
     localStorage.removeItem(AUTH_USER_KEY);
     setAuthUser(null);
     setIsLoggedIn(false);
-    setActiveMenu('dashboard-simples');
+    setActiveMenu('home');
     toast.success('Você saiu do sistema com sucesso!');
   };
 
   const menuItems = [
-    { id: 'dashboard-simples' as MenuOption, label: 'Dashboard Simples', icon: Home },
-    { id: 'dashboard' as MenuOption, label: 'Dashboard Completo', icon: Home },
+    { id: 'home' as MenuOption, label: 'Home', icon: HomeIcon },
     { id: 'receber' as MenuOption, label: 'Contas a Receber', icon: TrendingUp },
     { id: 'pagar' as MenuOption, label: 'Contas a Pagar', icon: TrendingDown },
     { id: 'receitas' as MenuOption, label: 'Receitas', icon: DollarSign },
@@ -93,6 +93,8 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeMenu) {
+      case 'home':
+        return <Home onNavigate={(target) => setActiveMenu(target)} />;
       case 'dashboard-simples':
         return <DashboardSimples />;
       case 'dashboard':
@@ -124,6 +126,16 @@ export default function App() {
 
   // Verifica se está em uma sub-página
   const isSubPage = activeMenu === 'tipos-contas' || activeMenu === 'categorias';
+  const pageTitle =
+    activeMenu === 'tipos-contas'
+      ? 'Tipos de Contas'
+      : activeMenu === 'categorias'
+        ? 'Categorias'
+        : activeMenu === 'dashboard'
+          ? 'Dashboard Completo'
+          : activeMenu === 'dashboard-simples'
+            ? 'Dashboard Simples'
+            : menuItems.find((item) => item.id === activeMenu)?.label;
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -166,7 +178,7 @@ export default function App() {
                         setSidebarOpen(false);
                       }
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-white text-left text-sm ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-white text-left text-sm cursor-pointer ${
                       isActive
                         ? 'bg-[#015a8a] hover:bg-[#016a9f]'
                         : 'hover:bg-[#015080]'
@@ -185,7 +197,7 @@ export default function App() {
             <li>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-white hover:bg-[#015080] text-left text-sm"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-white hover:bg-[#015080] text-left text-sm cursor-pointer"
               >
                 <LogOut className="w-5 h-5 shrink-0" style={{ color: '#5ba3c9' }} />
                 <span className="break-words">Desconectar</span>
@@ -229,7 +241,7 @@ export default function App() {
                 <Menu className="w-5 h-5" />
               </Button>
               <h2 className="text-gray-900 truncate">
-                {activeMenu === 'tipos-contas' ? 'Tipos de Contas' : activeMenu === 'categorias' ? 'Categorias' : menuItems.find((item) => item.id === activeMenu)?.label}
+                {pageTitle}
               </h2>
             </div>
             <div className="hidden md:flex items-center gap-4">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, Filter, Eye, Pencil, Trash2, Folder, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,9 +8,20 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Switch } from './ui/switch';
 import { toast } from 'sonner@2.0.3';
+import { getAuthToken } from '../lib/auth';
+
+type ApiCategoria = {
+  id: number;
+  description: string;
+  type: 'Receita' | 'Despesa';
+  specie?: string | null;
+  status?: boolean | number | string | null;
+};
 
 type Categoria = {
+  id: number;
   idCategoria: string;
   descricao: string;
   tipo: 'Receita' | 'Despesa';
@@ -18,24 +29,37 @@ type Categoria = {
   status: 'Ativo' | 'Inativo';
 };
 
-const mockCategorias: Categoria[] = [
-  { idCategoria: 'CAT-001', descricao: 'Receitas Operacionais', tipo: 'Receita', especie: 'Operacional', status: 'Ativo' },
-  { idCategoria: 'CAT-002', descricao: 'Receitas Financeiras', tipo: 'Receita', especie: 'Financeira', status: 'Ativo' },
-  { idCategoria: 'CAT-003', descricao: 'Outras Receitas', tipo: 'Receita', especie: 'Outras', status: 'Ativo' },
-  { idCategoria: 'CAT-004', descricao: 'Despesas Operacionais', tipo: 'Despesa', especie: 'Operacional', status: 'Ativo' },
-  { idCategoria: 'CAT-005', descricao: 'Despesas Administrativas', tipo: 'Despesa', especie: 'Administrativa', status: 'Ativo' },
-  { idCategoria: 'CAT-006', descricao: 'Impostos e Tributos', tipo: 'Despesa', especie: 'Tributária', status: 'Ativo' },
-  { idCategoria: 'CAT-007', descricao: 'Despesas Financeiras', tipo: 'Despesa', especie: 'Financeira', status: 'Ativo' },
-  { idCategoria: 'CAT-008', descricao: 'Despesas Comerciais', tipo: 'Despesa', especie: 'Comercial', status: 'Ativo' },
-  { idCategoria: 'CAT-009', descricao: 'Investimentos', tipo: 'Despesa', especie: 'Investimento', status: 'Ativo' },
-  { idCategoria: 'CAT-010', descricao: 'Manutenção e Reparos', tipo: 'Despesa', especie: 'Manutenção', status: 'Inativo' },
-];
+const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
+const formatCategoriaId = (id: number) => `CAT-${String(id).padStart(3, '0')}`;
+const isActiveStatus = (status: ApiCategoria['status']) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const mapApiCategoriaToCategoria = (categoria: ApiCategoria): Categoria => ({
+  id: categoria.id,
+  idCategoria: formatCategoriaId(categoria.id),
+  descricao: categoria.description,
+  tipo: categoria.type,
+  especie: categoria.specie || '',
+  status: isActiveStatus(categoria.status) ? 'Ativo' : 'Inativo',
+});
 
 export default function Categorias({ onBack }: { onBack: () => void }) {
-  const [categorias, setCategorias] = useState<Categoria[]>(mockCategorias);
-  const [filteredCategorias, setFilteredCategorias] = useState<Categoria[]>(mockCategorias);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [filteredCategorias, setFilteredCategorias] = useState<Categoria[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [filtroStatus, setFiltroStatus] = useState('Todos');
@@ -48,13 +72,84 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   
   const [sortColumn, setSortColumn] = useState<keyof Categoria | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     idCategoria: '',
     descricao: '',
     tipo: 'Receita',
     especie: '',
+    status: 'Ativo',
   });
+
+  const applyFilters = (source = categorias) => {
+    let filtered = source;
+
+    if (debouncedSearchTerm) {
+      filtered = filtered.filter(cat =>
+        cat.idCategoria.toLowerCase().includes(debouncedSearchTerm) ||
+        cat.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        cat.especie.toLowerCase().includes(debouncedSearchTerm)
+      );
+    }
+
+    if (filtroTipo !== 'Todos') {
+      filtered = filtered.filter(cat => cat.tipo === filtroTipo);
+    }
+
+    if (filtroStatus !== 'Todos') {
+      filtered = filtered.filter(cat => cat.status === filtroStatus);
+    }
+
+    if (filtroEspecie !== 'Todas') {
+      filtered = filtered.filter(cat => cat.especie === filtroEspecie);
+    }
+
+    setFilteredCategorias(filtered);
+  };
+
+  const fetchCategorias = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/category-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar categorias.');
+    }
+
+    const mappedCategorias = ((result.data || []) as ApiCategoria[]).map(mapApiCategoriaToCategoria);
+    setCategorias(mappedCategorias);
+    applyFilters(mappedCategorias);
+  };
+
+  useEffect(() => {
+    const loadCategorias = async () => {
+      setIsLoading(true);
+      try {
+        await fetchCategorias();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar categorias.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCategorias();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [debouncedSearchTerm, filtroTipo, filtroStatus, filtroEspecie, categorias]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim().toLowerCase());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleSort = (column: keyof Categoria) => {
     if (sortColumn === column) {
@@ -74,34 +169,11 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const handleSearch = () => {
-    let filtered = categorias;
-
-    if (searchTerm) {
-      filtered = filtered.filter(cat =>
-        cat.idCategoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cat.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cat.especie.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (filtroTipo !== 'Todos') {
-      filtered = filtered.filter(cat => cat.tipo === filtroTipo);
-    }
-
-    if (filtroStatus !== 'Todos') {
-      filtered = filtered.filter(cat => cat.status === filtroStatus);
-    }
-
-    if (filtroEspecie !== 'Todas') {
-      filtered = filtered.filter(cat => cat.especie === filtroEspecie);
-    }
-
-    setFilteredCategorias(filtered);
-  };
+  const handleSearch = () => applyFilters();
 
   const handleClearFilters = () => {
     setSearchTerm('');
+    setDebouncedSearchTerm('');
     setFiltroTipo('Todos');
     setFiltroStatus('Todos');
     setFiltroEspecie('Todas');
@@ -115,6 +187,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       descricao: '',
       tipo: 'Receita',
       especie: '',
+      status: 'Ativo',
     });
     setDialogOpen(true);
   };
@@ -126,6 +199,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       descricao: categoria.descricao,
       tipo: categoria.tipo,
       especie: categoria.especie,
+      status: categoria.status,
     });
     setDialogOpen(true);
   };
@@ -135,45 +209,70 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     setViewDialogOpen(true);
   };
 
-  const handleDelete = (idCategoria: string) => {
-    if (confirm('Deseja realmente excluir esta categoria?')) {
-      setCategorias(categorias.filter(c => c.idCategoria !== idCategoria));
-      setFilteredCategorias(filteredCategorias.filter(c => c.idCategoria !== idCategoria));
+  const handleDelete = async (categoria: Categoria) => {
+    if (!confirm('Deseja realmente excluir esta categoria?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/category-types/${categoria.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao excluir categoria.');
+      }
+
+      const updatedCategorias = categorias.filter(c => c.id !== categoria.id);
+      setCategorias(updatedCategorias);
+      applyFilters(updatedCategorias);
       toast.success('Categoria excluída com sucesso!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir categoria.');
     }
   };
 
-  const handleSave = () => {
-    if (editingCategoria) {
-      // Editar
-      const updatedCategorias = categorias.map(c =>
-        c.idCategoria === editingCategoria.idCategoria
-          ? {
-              ...c,
-              descricao: formData.descricao,
-              tipo: formData.tipo as 'Receita' | 'Despesa',
-              especie: formData.especie,
-            }
-          : c
-      );
-      setCategorias(updatedCategorias);
-      setFilteredCategorias(updatedCategorias);
-      toast.success('Categoria atualizada com sucesso!');
-    } else {
-      // Adicionar
-      const newCategoria: Categoria = {
-        idCategoria: formData.idCategoria || `CAT-${String(categorias.length + 1).padStart(3, '0')}`,
-        descricao: formData.descricao,
-        tipo: formData.tipo as 'Receita' | 'Despesa',
-        especie: formData.especie,
-        status: 'Ativo',
-      };
-      setCategorias([...categorias, newCategoria]);
-      setFilteredCategorias([...categorias, newCategoria]);
-      toast.success('Categoria cadastrada com sucesso!');
+  const handleSave = async () => {
+    if (!formData.descricao.trim() || !formData.tipo || !formData.especie.trim()) {
+      toast.error('Preencha os campos obrigatórios.');
+      return;
     }
-    
-    setDialogOpen(false);
+
+    setIsSaving(true);
+
+    try {
+      const isEditing = Boolean(editingCategoria);
+      const endpoint = isEditing ? `${getApiBaseUrl()}/api/category-types/${editingCategoria!.id}` : `${getApiBaseUrl()}/api/category-types`;
+      const method = isEditing ? 'PUT' : 'POST';
+      const nextStatus = formData.status === 'Ativo';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          description: formData.descricao.trim(),
+          type: formData.tipo,
+          specie: formData.especie.trim(),
+          status: nextStatus,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao salvar categoria.');
+      }
+
+      toast.success(isEditing ? 'Categoria atualizada com sucesso!' : 'Categoria cadastrada com sucesso!');
+      setDialogOpen(false);
+      setEditingCategoria(null);
+      await fetchCategorias();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar categoria.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const totalAtivas = filteredCategorias.filter(c => c.status === 'Ativo').length;
@@ -293,10 +392,6 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
               </Button>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 sm:w-auto">
-                <Search className="w-4 h-4 mr-2" />
-                Buscar
-              </Button>
               {(searchTerm || filtroTipo !== 'Todos' || filtroStatus !== 'Todos' || filtroEspecie !== 'Todas') && (
                 <Button variant="outline" onClick={handleClearFilters}>
                   <X className="w-4 h-4 mr-2" />
@@ -404,7 +499,21 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedCategorias.map((categoria) => (
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      Carregando categorias...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && sortedCategorias.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      Nenhuma categoria encontrada.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && sortedCategorias.map((categoria) => (
                   <TableRow key={categoria.idCategoria}>
                     <TableCell className="font-mono">{categoria.idCategoria}</TableCell>
                     <TableCell>{categoria.descricao}</TableCell>
@@ -440,7 +549,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(categoria.idCategoria)}
+                          onClick={() => handleDelete(categoria)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -469,16 +578,16 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="idCategoria">ID Categoria</Label>
-              <Input 
-                id="idCategoria" 
-                placeholder="Ex: CAT-001" 
-                value={formData.idCategoria}
-                onChange={(e) => setFormData({ ...formData, idCategoria: e.target.value })}
-                disabled={!!editingCategoria}
-              />
-            </div>
+            {editingCategoria && (
+              <div className="space-y-2">
+                <Label htmlFor="idCategoria">ID Categoria</Label>
+                <Input
+                  id="idCategoria"
+                  value={formData.idCategoria}
+                  disabled
+                />
+              </div>
+            )}
             <div className="space-y-2 col-span-2">
               <Label htmlFor="descricao">Descrição</Label>
               <Input 
@@ -512,6 +621,14 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                 onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="status"
+                checked={formData.status === 'Ativo'}
+                onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
+              />
+              <Label htmlFor="status">Ativo</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -520,9 +637,9 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
             <Button 
               className="bg-green-600 hover:bg-green-700" 
               onClick={handleSave}
-              disabled={!formData.descricao || !formData.tipo || !formData.especie}
+              disabled={isSaving || !formData.descricao || !formData.tipo || !formData.especie}
             >
-              {editingCategoria ? 'Atualizar' : 'Salvar'}
+              {isSaving ? 'Salvando...' : editingCategoria ? 'Atualizar' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>

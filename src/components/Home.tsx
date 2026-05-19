@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner@2.0.3';
+import { ArrowDownRight, ArrowUpRight, AlertCircle, DollarSign, FileText, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getAuthToken } from '../lib/auth';
+
+type HomeTarget = 'pagar' | 'receber' | 'receitas' | 'despesas' | 'relatorios';
+
+type HomeProps = {
+  onNavigate: (target: HomeTarget) => void;
+};
 
 type ApiAccountType = {
   id: number;
@@ -19,7 +26,7 @@ type ApiAccount = {
   accountType?: ApiAccountType | null;
 };
 
-type DashboardItem = {
+type HomeItem = {
   id: number;
   descricao: string;
   valor: number;
@@ -41,6 +48,8 @@ const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const isTrue = (value: boolean | number | string | null | undefined) => value === true || value === 1 || value === '1' || value === 'true';
 const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const normalizeDateInput = (value?: string | null) => (value ? value.slice(0, 10) : '');
+const toMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+const getMonthKeyFromInput = (value: string) => value.slice(0, 7);
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -53,10 +62,6 @@ const getAuthHeaders = () => {
     Authorization: `Bearer ${token}`,
   };
 };
-
-const toMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-const getMonthKeyFromInput = (value: string) => value.slice(0, 7);
 
 const formatTrend = (current: number, previous: number) => {
   if (!previous) return 'Sem base anterior';
@@ -76,7 +81,7 @@ const getDaysLabel = (date: string) => {
   return `Vence em ${days} dia(s)`;
 };
 
-const mapAccount = (account: ApiAccount): DashboardItem => ({
+const mapAccount = (account: ApiAccount): HomeItem => ({
   id: account.id,
   descricao: account.description || `Conta ${account.id}`,
   valor: Number(account.value || 0),
@@ -85,9 +90,9 @@ const mapAccount = (account: ApiAccount): DashboardItem => ({
   tipoConta: account.accountType?.description || 'Sem tipo',
 });
 
-export default function DashboardOverview() {
-  const [receivables, setReceivables] = useState<DashboardItem[]>([]);
-  const [payables, setPayables] = useState<DashboardItem[]>([]);
+export default function Home({ onNavigate }: HomeProps) {
+  const [receivables, setReceivables] = useState<HomeItem[]>([]);
+  const [payables, setPayables] = useState<HomeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchJson = async <T,>(path: string): Promise<T> => {
@@ -97,13 +102,13 @@ export default function DashboardOverview() {
     const result = await response.json();
 
     if (!response.ok || !result?.success) {
-      throw new Error(result?.error || 'Erro ao carregar dados do dashboard.');
+      throw new Error(result?.error || 'Erro ao carregar dados da home.');
     }
 
     return result.data as T;
   };
 
-  const loadDashboardData = async () => {
+  const loadHomeData = async () => {
     setIsLoading(true);
     try {
       const [payablesData, receivablesData] = await Promise.all([
@@ -114,14 +119,14 @@ export default function DashboardOverview() {
       setPayables((payablesData || []).map(mapAccount));
       setReceivables((receivablesData || []).map(mapAccount));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao carregar dashboard.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar home.');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDashboardData();
+    loadHomeData();
   }, []);
 
   const monthlyData = useMemo(() => {
@@ -202,9 +207,16 @@ export default function DashboardOverview() {
   const totalPagar = pendingPayablesAll.reduce((acc, item) => acc + item.valor, 0);
   const totalPendente = totalReceber + totalPagar;
 
+  const quickLinks = [
+    { target: 'pagar' as const, title: 'Contas a Pagar', subtitle: 'Gerenciar', icon: TrendingDown, color: 'text-red-600' },
+    { target: 'receber' as const, title: 'Contas a Receber', subtitle: 'Gerenciar', icon: TrendingUp, color: 'text-green-600' },
+    { target: 'receitas' as const, title: 'Receitas', subtitle: 'Lançar', icon: DollarSign, color: 'text-emerald-600' },
+    { target: 'despesas' as const, title: 'Despesas', subtitle: 'Lançar', icon: Wallet, color: 'text-orange-600' },
+    { target: 'relatorios' as const, title: 'Relatórios', subtitle: 'Visualizar', icon: FileText, color: 'text-blue-600' },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -212,9 +224,7 @@ export default function DashboardOverview() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">
-              {formatCurrency(totalReceitas)}
-            </div>
+            <div className="text-green-600">{formatCurrency(totalReceitas)}</div>
             <div className="flex items-center gap-2 mt-2">
               {totalReceitas >= (previousMonth?.receitas || 0) ? (
                 <ArrowUpRight className="h-4 w-4 text-green-600" />
@@ -232,9 +242,7 @@ export default function DashboardOverview() {
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">
-              {formatCurrency(totalDespesas)}
-            </div>
+            <div className="text-red-600">{formatCurrency(totalDespesas)}</div>
             <div className="flex items-center gap-2 mt-2">
               {totalDespesas >= (previousMonth?.despesas || 0) ? (
                 <ArrowUpRight className="h-4 w-4 text-red-600" />
@@ -252,9 +260,7 @@ export default function DashboardOverview() {
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">
-              {formatCurrency(saldo)}
-            </div>
+            <div className="text-blue-600">{formatCurrency(saldo)}</div>
             <div className="flex items-center gap-2 mt-2">
               {saldo >= ((previousMonth?.receitas || 0) - (previousMonth?.despesas || 0)) ? (
                 <ArrowUpRight className="h-4 w-4 text-blue-600" />
@@ -272,19 +278,14 @@ export default function DashboardOverview() {
             <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-orange-600">
-              {pendingReceivablesAll.length + pendingPayablesAll.length} contas
-            </div>
+            <div className="text-orange-600">{pendingReceivablesAll.length + pendingPayablesAll.length} contas</div>
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-gray-500">
-                {formatCurrency(totalPendente)} em aberto
-              </span>
+              <span className="text-gray-500">{formatCurrency(totalPendente)} em aberto</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -297,11 +298,7 @@ export default function DashboardOverview() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="mes" />
                 <YAxis />
-                <Tooltip
-                  formatter={(value: number) =>
-                    formatCurrency(Number(value))
-                  }
-                />
+                <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
                 <Legend />
                 <Bar dataKey="receitas" fill="#10b981" name="Receitas" />
                 <Bar dataKey="despesas" fill="#ef4444" name="Despesas" />
@@ -317,15 +314,11 @@ export default function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyData.map(d => ({ ...d, saldo: d.receitas - d.despesas }))}>
+              <LineChart data={monthlyData.map((item) => ({ ...item, saldo: item.receitas - item.despesas }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="mes" />
                 <YAxis />
-                <Tooltip
-                  formatter={(value: number) =>
-                    formatCurrency(Number(value))
-                  }
-                />
+                <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
                 <Legend />
                 <Line type="monotone" dataKey="saldo" stroke="#3b82f6" strokeWidth={2} name="Saldo" />
               </LineChart>
@@ -334,7 +327,6 @@ export default function DashboardOverview() {
         </Card>
       </div>
 
-      {/* Despesas por Categoria */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader>
@@ -349,14 +341,7 @@ export default function DashboardOverview() {
             ) : (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
+                  <Pie data={categoryData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value">
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -397,15 +382,13 @@ export default function DashboardOverview() {
                         <p className="text-gray-900">{item.descricao}</p>
                         <p className="text-gray-500">{getDaysLabel(item.data)}</p>
                       </div>
-                      <div className="text-green-600">
-                        {formatCurrency(item.valor)}
-                      </div>
+                      <div className="text-green-600">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
                   {pendingReceivables.length === 0 && <p className="text-gray-500">Nenhuma conta a receber pendente.</p>}
                 </div>
               </div>
-              
+
               <div>
                 <h4 className="text-red-600 mb-3">A Pagar</h4>
                 <div className="space-y-2">
@@ -415,9 +398,7 @@ export default function DashboardOverview() {
                         <p className="text-gray-900">{item.descricao}</p>
                         <p className="text-gray-500">{getDaysLabel(item.data)}</p>
                       </div>
-                      <div className="text-red-600">
-                        {formatCurrency(item.valor)}
-                      </div>
+                      <div className="text-red-600">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
                   {pendingPayables.length === 0 && <p className="text-gray-500">Nenhuma conta a pagar pendente.</p>}
@@ -428,9 +409,32 @@ export default function DashboardOverview() {
         </Card>
       </div>
 
-      {isLoading && (
-        <p className="text-gray-500 text-sm">Carregando dados reais do dashboard...</p>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Acesso Rápido</CardTitle>
+          <CardDescription>Atalhos para as principais rotinas do sistema</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {quickLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Button key={item.target} type="button" variant="outline" className="h-auto w-full justify-start p-4 cursor-pointer whitespace-normal" onClick={() => onNavigate(item.target)}>
+                  <div className="flex min-w-0 items-start gap-3 text-left">
+                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${item.color}`} />
+                    <div className="min-w-0">
+                      <div className="text-gray-700 font-medium leading-tight break-words">{item.title}</div>
+                      <div className="text-gray-500 text-sm mt-1">{item.subtitle}</div>
+                    </div>
+                  </div>
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading && <p className="text-gray-500 text-sm">Carregando dados reais da home...</p>}
     </div>
   );
 }

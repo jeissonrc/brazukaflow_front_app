@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, CreditCard, CheckCircle, XCircle, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,6 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from './ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Switch } from './ui/switch';
+import { getAuthToken } from '../lib/auth';
+
+type ApiTipoPagamento = {
+  id: number;
+  name: string;
+  description?: string | null;
+  status: boolean | number;
+};
 
 type TipoPagamento = {
   id: number;
@@ -16,24 +25,89 @@ type TipoPagamento = {
   ativo: boolean;
 };
 
-const mockTiposPagamento: TipoPagamento[] = [
-  { id: 1, nome: 'Pix', descricao: 'Pagamento via Pix', ativo: true },
-  { id: 2, nome: 'Cartão de Crédito', descricao: 'Pagamento com cartão de crédito', ativo: true },
-  { id: 3, nome: 'Título', descricao: 'Pagamento via título bancário', ativo: true },
-  { id: 4, nome: 'Dinheiro', descricao: 'Pagamento em dinheiro', ativo: true },
-  { id: 5, nome: 'Depósito', descricao: 'Depósito bancário', ativo: true },
-  { id: 6, nome: 'Cheque', descricao: 'Pagamento em cheque', ativo: true },
-];
+type TipoPagamentoForm = {
+  nome: string;
+  descricao: string;
+  ativo: boolean;
+};
+
+const DEFAULT_FORM: TipoPagamentoForm = {
+  nome: '',
+  descricao: '',
+  ativo: true,
+};
+
+const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
+
+const mapApiTipoToTipo = (tipo: ApiTipoPagamento): TipoPagamento => ({
+  id: tipo.id,
+  nome: tipo.name,
+  descricao: tipo.description || '',
+  ativo: Boolean(tipo.status),
+});
 
 export default function TiposPagamento() {
-  const [tiposPagamento, setTiposPagamento] = useState<TipoPagamento[]>(mockTiposPagamento);
+  const [tiposPagamento, setTiposPagamento] = useState<TipoPagamento[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedTipo, setSelectedTipo] = useState<TipoPagamento | null>(null);
   const [editingTipo, setEditingTipo] = useState<TipoPagamento | null>(null);
+  const [formData, setFormData] = useState<TipoPagamentoForm>(DEFAULT_FORM);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof TipoPagamento | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const getAuthHeaders = () => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+  const fetchTiposPagamento = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/payment-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar tipos de pagamento.');
+    }
+
+    const apiTipos = (result.data || []) as ApiTipoPagamento[];
+    setTiposPagamento(apiTipos.map(mapApiTipoToTipo));
+  };
+
+  useEffect(() => {
+    const loadTiposPagamento = async () => {
+      setIsLoading(true);
+      try {
+        await fetchTiposPagamento();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar tipos de pagamento.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTiposPagamento();
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim().toLowerCase());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleSort = (column: keyof TipoPagamento) => {
     if (sortColumn === column) {
@@ -53,20 +127,72 @@ export default function TiposPagamento() {
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const handleToggleAtivo = (id: number) => {
-    setTiposPagamento(tiposPagamento.map(tp => 
-      tp.id === id ? { ...tp, ativo: !tp.ativo } : tp
-    ));
+  const handleToggleAtivo = async (tipo: TipoPagamento) => {
+    const nextStatus = !tipo.ativo;
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/payment-types/${tipo.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao alterar status do tipo de pagamento.');
+      }
+
+      setTiposPagamento((prev) =>
+        prev.map((item) =>
+          item.id === tipo.id
+            ? {
+                ...item,
+                ativo: nextStatus,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao alterar status.');
+    }
+  };
+
+  const openCreateDialog = () => {
+    setEditingTipo(null);
+    setFormData(DEFAULT_FORM);
+    setDialogOpen(true);
   };
 
   const handleEdit = (tipo: TipoPagamento) => {
     setEditingTipo(tipo);
+    setFormData({
+      nome: tipo.nome,
+      descricao: tipo.descricao || '',
+      ativo: tipo.ativo,
+    });
     setDialogOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este tipo de pagamento?')) {
-      setTiposPagamento(tiposPagamento.filter(t => t.id !== id));
+  const handleDelete = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir este tipo de pagamento?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/payment-types/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao excluir tipo de pagamento.');
+      }
+
+      setTiposPagamento((prev) => prev.filter((tipo) => tipo.id !== id));
+      toast.success('Tipo de pagamento excluído com sucesso.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de pagamento.');
     }
   };
 
@@ -78,11 +204,53 @@ export default function TiposPagamento() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingTipo(null);
+    setFormData(DEFAULT_FORM);
+  };
+
+  const saveTipoPagamento = async () => {
+    if (!formData.nome.trim()) {
+      toast.error('Preencha o nome do tipo de pagamento.');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const payload = {
+        name: formData.nome.trim(),
+        description: formData.descricao.trim() || null,
+        status: formData.ativo,
+      };
+
+      const isEditing = Boolean(editingTipo);
+      const endpoint = isEditing ? `${getApiBaseUrl()}/api/payment-types/${editingTipo!.id}` : `${getApiBaseUrl()}/api/payment-types`;
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao salvar tipo de pagamento.');
+      }
+
+      toast.success(isEditing ? 'Tipo de pagamento atualizado com sucesso.' : 'Tipo de pagamento criado com sucesso.');
+      handleCloseDialog();
+      await fetchTiposPagamento();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar tipo de pagamento.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filteredTipos = tiposPagamento.filter(tp =>
-    tp.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tp.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+    !debouncedSearchTerm ||
+    tp.nome.toLowerCase().includes(debouncedSearchTerm) ||
+    tp.descricao?.toLowerCase().includes(debouncedSearchTerm)
   );
 
   // Aplicar ordenação
@@ -161,7 +329,7 @@ export default function TiposPagamento() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
+                <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Tipo
                 </Button>
@@ -179,7 +347,8 @@ export default function TiposPagamento() {
                     <Input 
                       id="nome" 
                       placeholder="Ex: Boleto Bancário" 
-                      defaultValue={editingTipo?.nome}
+                      value={formData.nome}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -187,20 +356,21 @@ export default function TiposPagamento() {
                     <Input 
                       id="descricao" 
                       placeholder="Descrição opcional" 
-                      defaultValue={editingTipo?.descricao}
+                      value={formData.descricao}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
                     />
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Switch id="ativo" defaultChecked={editingTipo?.ativo ?? true} />
-                    <Label htmlFor="ativo">Tipo ativo</Label>
+                    <Switch id="ativo" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
+                    <Label htmlFor="ativo">Ativo</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={handleCloseDialog}>
-                    {editingTipo ? 'Atualizar' : 'Salvar'}
+                  <Button className="bg-green-600 hover:bg-green-700" onClick={saveTipoPagamento} disabled={isSaving}>
+                    {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -247,7 +417,21 @@ export default function TiposPagamento() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedTipos.map((tipo) => (
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    Carregando tipos de pagamento...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && sortedTipos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    Nenhum tipo de pagamento encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && sortedTipos.map((tipo) => (
                 <TableRow key={tipo.id}>
                   <TableCell>{tipo.id}</TableCell>
                   <TableCell>{tipo.nome}</TableCell>
@@ -258,7 +442,7 @@ export default function TiposPagamento() {
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={tipo.ativo}
-                        onCheckedChange={() => handleToggleAtivo(tipo.id)}
+                        onCheckedChange={() => handleToggleAtivo(tipo)}
                       />
                       {tipo.ativo ? (
                         <Badge className="bg-green-100 text-green-700">

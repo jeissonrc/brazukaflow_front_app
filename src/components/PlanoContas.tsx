@@ -1,14 +1,28 @@
-import { useState } from 'react';
-import { Plus, ChevronRight, ChevronDown, Pencil, Trash2, Settings, Eye, FolderTree } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronRight, ChevronDown, Settings, FolderTree } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Label } from './ui/label';
-import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
+import { getAuthToken } from '../lib/auth';
+
+type ApiCategoria = {
+  id: number;
+  description: string;
+  type: 'Receita' | 'Despesa';
+  specie?: string | null;
+  status?: boolean | number;
+};
+
+type ApiTipoConta = {
+  id: number;
+  description: string;
+  type: 'Receita' | 'Despesa';
+  specie?: string | null;
+  status?: boolean | number;
+  categoryId: number;
+  category?: ApiCategoria;
+};
 
 type ContaItem = {
   id: string;
@@ -19,96 +33,63 @@ type ContaItem = {
   children?: ContaItem[];
 };
 
-type TipoConta = {
-  id: number;
-  nome: string;
-  categoria: string;
-  categoriaId: number;
-  ativo: boolean;
+const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
+
+const getContaTipo = (tipo: string): 'receita' | 'despesa' => (tipo === 'Receita' ? 'receita' : 'despesa');
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
 };
 
-type Categoria = {
-  id: number;
-  nome: string;
-  descricao: string;
+const buildPlanoContas = (categorias: ApiCategoria[], tiposContas: ApiTipoConta[]): ContaItem[] => {
+  const tiposAtivos = tiposContas.filter((tipo) => tipo.status !== false && tipo.status !== 0);
+  const categoriasAtivas = categorias.filter((categoria) => categoria.status !== false && categoria.status !== 0);
+
+  const buildGrupo = (tipoGrupo: 'Receita' | 'Despesa', codigoGrupo: string, nomeGrupo: string): ContaItem => {
+    const categoriasDoGrupo = categoriasAtivas.filter((categoria) => categoria.type === tipoGrupo);
+    const contaTipo = getContaTipo(tipoGrupo);
+
+    return {
+      id: codigoGrupo,
+      codigo: codigoGrupo,
+      nome: nomeGrupo,
+      tipo: contaTipo,
+      nivel: 1,
+      children: categoriasDoGrupo.map((categoria, categoriaIndex) => {
+        const codigoCategoria = `${codigoGrupo}.${categoriaIndex + 1}`;
+        const tiposDaCategoria = tiposAtivos.filter((tipo) => tipo.categoryId === categoria.id);
+
+        return {
+          id: `categoria-${categoria.id}`,
+          codigo: codigoCategoria,
+          nome: categoria.description,
+          tipo: contaTipo,
+          nivel: 2,
+          children: tiposDaCategoria.map((tipoConta, tipoIndex) => ({
+            id: `tipo-${tipoConta.id}`,
+            codigo: `${codigoCategoria}.${tipoIndex + 1}`,
+            nome: tipoConta.description,
+            tipo: contaTipo,
+            nivel: 3,
+          })),
+        };
+      }),
+    };
+  };
+
+  return [
+    buildGrupo('Receita', '1', 'RECEITAS'),
+    buildGrupo('Despesa', '2', 'DESPESAS'),
+  ];
 };
-
-const mockPlanoContas: ContaItem[] = [
-  {
-    id: '1',
-    codigo: '1',
-    nome: 'RECEITAS',
-    tipo: 'receita',
-    nivel: 1,
-    children: [
-      {
-        id: '1.1',
-        codigo: '1.1',
-        nome: 'Receitas Operacionais',
-        tipo: 'receita',
-        nivel: 2,
-        children: [
-          { id: '1.1.1', codigo: '1.1.1', nome: 'Vendas de Produtos', tipo: 'receita', nivel: 3 },
-          { id: '1.1.2', codigo: '1.1.2', nome: 'Prestação de Serviços', tipo: 'receita', nivel: 3 },
-          { id: '1.1.3', codigo: '1.1.3', nome: 'Consultoria e Assessoria', tipo: 'receita', nivel: 3 },
-          { id: '1.1.4', codigo: '1.1.4', nome: 'Royalties', tipo: 'receita', nivel: 3 },
-        ],
-      },
-    ],
-  },
-  {
-    id: '2',
-    codigo: '2',
-    nome: 'DESPESAS',
-    tipo: 'despesa',
-    nivel: 1,
-    children: [
-      {
-        id: '2.1',
-        codigo: '2.1',
-        nome: 'Despesas Operacionais',
-        tipo: 'despesa',
-        nivel: 2,
-        children: [
-          { id: '2.1.1', codigo: '2.1.1', nome: 'Salários e Encargos', tipo: 'despesa', nivel: 3 },
-          { id: '2.1.2', codigo: '2.1.2', nome: 'Aluguel e Condomínio', tipo: 'despesa', nivel: 3 },
-          { id: '2.1.3', codigo: '2.1.3', nome: 'Água, Luz e Telefone', tipo: 'despesa', nivel: 3 },
-          { id: '2.1.4', codigo: '2.1.4', nome: 'Material de Escritório', tipo: 'despesa', nivel: 3 },
-        ],
-      },
-      {
-        id: '2.2',
-        codigo: '2.2',
-        nome: 'Impostos e Taxas',
-        tipo: 'despesa',
-        nivel: 2,
-        children: [
-          { id: '2.2.1', codigo: '2.2.1', nome: 'Impostos Federais', tipo: 'despesa', nivel: 3 },
-          { id: '2.2.2', codigo: '2.2.2', nome: 'Impostos Estaduais', tipo: 'despesa', nivel: 3 },
-        ],
-      },
-    ],
-  },
-];
-
-const mockCategorias: Categoria[] = [
-  { id: 1, nome: 'Receitas Operacionais', descricao: 'Receitas provenientes das atividades principais' },
-  { id: 2, nome: 'Despesas Operacionais', descricao: 'Despesas relacionadas à operação do negócio' },
-  { id: 3, nome: 'Impostos e Taxas', descricao: 'Tributos e taxas diversas' },
-];
-
-const mockTiposContas: TipoConta[] = [
-  { id: 1, nome: 'Vendas de Produtos', categoria: 'Receitas Operacionais', categoriaId: 1, ativo: true },
-  { id: 2, nome: 'Prestação de Serviços', categoria: 'Receitas Operacionais', categoriaId: 1, ativo: true },
-  { id: 3, nome: 'Consultoria e Assessoria', categoria: 'Receitas Operacionais', categoriaId: 1, ativo: true },
-  { id: 4, nome: 'Royalties', categoria: 'Receitas Operacionais', categoriaId: 1, ativo: true },
-  { id: 5, nome: 'Salários e Encargos', categoria: 'Despesas Operacionais', categoriaId: 2, ativo: true },
-  { id: 6, nome: 'Aluguel e Condomínio', categoria: 'Despesas Operacionais', categoriaId: 2, ativo: true },
-  { id: 7, nome: 'Água, Luz e Telefone', categoria: 'Despesas Operacionais', categoriaId: 2, ativo: true },
-  { id: 8, nome: 'Material de Escritório', categoria: 'Despesas Operacionais', categoriaId: 2, ativo: true },
-  { id: 9, nome: 'Impostos Federais', categoria: 'Impostos e Taxas', categoriaId: 3, ativo: true },
-  { id: 10, nome: 'Impostos Estaduais', categoria: 'Impostos e Taxas', categoriaId: 3, ativo: true },
-];
 
 function ContaTreeItem({ conta }: { conta: ContaItem }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -149,7 +130,41 @@ function ContaTreeItem({ conta }: { conta: ContaItem }) {
 }
 
 export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: () => void }) {
-  const [planoContas] = useState<ContaItem[]>(mockPlanoContas);
+  const [planoContas, setPlanoContas] = useState<ContaItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPlanoContas = async () => {
+      setIsLoading(true);
+      try {
+        const [categoriasResponse, tiposContasResponse] = await Promise.all([
+          fetch(`${getApiBaseUrl()}/api/category-types`, { headers: getAuthHeaders() }),
+          fetch(`${getApiBaseUrl()}/api/account-types`, { headers: getAuthHeaders() }),
+        ]);
+
+        const [categoriasResult, tiposContasResult] = await Promise.all([
+          categoriasResponse.json(),
+          tiposContasResponse.json(),
+        ]);
+
+        if (!categoriasResponse.ok || !categoriasResult?.success) {
+          throw new Error(categoriasResult?.error || 'Erro ao carregar categorias.');
+        }
+
+        if (!tiposContasResponse.ok || !tiposContasResult?.success) {
+          throw new Error(tiposContasResult?.error || 'Erro ao carregar tipos de contas.');
+        }
+
+        setPlanoContas(buildPlanoContas(categoriasResult.data || [], tiposContasResult.data || []));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar plano de contas.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPlanoContas();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -181,7 +196,13 @@ export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: 
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-2">
-            {planoContas.map((conta) => (
+            {isLoading && (
+              <p className="text-center text-gray-500 py-8">Carregando plano de contas...</p>
+            )}
+            {!isLoading && planoContas.length === 0 && (
+              <p className="text-center text-gray-500 py-8">Nenhuma conta encontrada.</p>
+            )}
+            {!isLoading && planoContas.map((conta) => (
               <ContaTreeItem key={conta.id} conta={conta} />
             ))}
           </div>

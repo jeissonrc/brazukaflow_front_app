@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, Filter, Eye, Pencil, Trash2, FolderTree, Settings, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,9 +8,37 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Switch } from './ui/switch';
 import { toast } from 'sonner@2.0.3';
+import { getAuthToken } from '../lib/auth';
+
+type ApiCategoria = {
+  id: number;
+  description: string;
+  type: 'Receita' | 'Despesa';
+  specie?: string | null;
+  status?: boolean | number;
+};
+
+type ApiTipoConta = {
+  id: number;
+  description: string;
+  type: 'Receita' | 'Despesa';
+  specie?: string | null;
+  status?: boolean | number | string | null;
+  categoryId: number;
+  category?: ApiCategoria;
+};
+
+type Categoria = {
+  id: string;
+  descricao: string;
+  tipo: 'Receita' | 'Despesa';
+  especie: string;
+};
 
 type TipoConta = {
+  id: number;
   idTipo: string;
   descricao: string;
   tipo: 'Receita' | 'Despesa';
@@ -20,42 +48,48 @@ type TipoConta = {
   status: 'Ativo' | 'Inativo';
 };
 
-const mockCategorias = [
-  { id: 'CAT-001', descricao: 'Receitas Operacionais', tipo: 'Receita', especie: 'Operacional' },
-  { id: 'CAT-002', descricao: 'Receitas Financeiras', tipo: 'Receita', especie: 'Financeira' },
-  { id: 'CAT-003', descricao: 'Outras Receitas', tipo: 'Receita', especie: 'Outras' },
-  { id: 'CAT-004', descricao: 'Despesas Operacionais', tipo: 'Despesa', especie: 'Operacional' },
-  { id: 'CAT-005', descricao: 'Despesas Administrativas', tipo: 'Despesa', especie: 'Administrativa' },
-  { id: 'CAT-006', descricao: 'Impostos e Tributos', tipo: 'Despesa', especie: 'Tributária' },
-  { id: 'CAT-007', descricao: 'Despesas Financeiras', tipo: 'Despesa', especie: 'Financeira' },
-];
+const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 
-const mockTiposContas: TipoConta[] = [
-  { idTipo: 'TC-001', descricao: 'Vendas de Produtos', tipo: 'Receita', especie: 'Operacional', categoria: 'Receitas Operacionais', idCategoria: 'CAT-001', status: 'Ativo' },
-  { idTipo: 'TC-002', descricao: 'Prestação de Serviços', tipo: 'Receita', especie: 'Operacional', categoria: 'Receitas Operacionais', idCategoria: 'CAT-001', status: 'Ativo' },
-  { idTipo: 'TC-003', descricao: 'Consultoria e Assessoria', tipo: 'Receita', especie: 'Operacional', categoria: 'Receitas Operacionais', idCategoria: 'CAT-001', status: 'Ativo' },
-  { idTipo: 'TC-004', descricao: 'Juros Recebidos', tipo: 'Receita', especie: 'Financeira', categoria: 'Receitas Financeiras', idCategoria: 'CAT-002', status: 'Ativo' },
-  { idTipo: 'TC-005', descricao: 'Rendimentos de Aplicações', tipo: 'Receita', especie: 'Financeira', categoria: 'Receitas Financeiras', idCategoria: 'CAT-002', status: 'Ativo' },
-  { idTipo: 'TC-006', descricao: 'Receitas Eventuais', tipo: 'Receita', especie: 'Outras', categoria: 'Outras Receitas', idCategoria: 'CAT-003', status: 'Ativo' },
-  { idTipo: 'TC-007', descricao: 'Salários e Encargos', tipo: 'Despesa', especie: 'Operacional', categoria: 'Despesas Operacionais', idCategoria: 'CAT-004', status: 'Ativo' },
-  { idTipo: 'TC-008', descricao: 'Aluguel e Condomínio', tipo: 'Despesa', especie: 'Operacional', categoria: 'Despesas Operacionais', idCategoria: 'CAT-004', status: 'Ativo' },
-  { idTipo: 'TC-009', descricao: 'Água, Luz e Telefone', tipo: 'Despesa', especie: 'Operacional', categoria: 'Despesas Operacionais', idCategoria: 'CAT-004', status: 'Ativo' },
-  { idTipo: 'TC-010', descricao: 'Material de Escritório', tipo: 'Despesa', especie: 'Operacional', categoria: 'Despesas Operacionais', idCategoria: 'CAT-004', status: 'Ativo' },
-  { idTipo: 'TC-011', descricao: 'Honorários Contábeis', tipo: 'Despesa', especie: 'Administrativa', categoria: 'Despesas Administrativas', idCategoria: 'CAT-005', status: 'Ativo' },
-  { idTipo: 'TC-012', descricao: 'Honorários Jurídicos', tipo: 'Despesa', especie: 'Administrativa', categoria: 'Despesas Administrativas', idCategoria: 'CAT-005', status: 'Ativo' },
-  { idTipo: 'TC-013', descricao: 'Software e Licenças', tipo: 'Despesa', especie: 'Administrativa', categoria: 'Despesas Administrativas', idCategoria: 'CAT-005', status: 'Ativo' },
-  { idTipo: 'TC-014', descricao: 'Impostos Federais', tipo: 'Despesa', especie: 'Tributária', categoria: 'Impostos e Tributos', idCategoria: 'CAT-006', status: 'Ativo' },
-  { idTipo: 'TC-015', descricao: 'Impostos Estaduais', tipo: 'Despesa', especie: 'Tributária', categoria: 'Impostos e Tributos', idCategoria: 'CAT-006', status: 'Ativo' },
-  { idTipo: 'TC-016', descricao: 'Impostos Municipais', tipo: 'Despesa', especie: 'Tributária', categoria: 'Impostos e Tributos', idCategoria: 'CAT-006', status: 'Ativo' },
-  { idTipo: 'TC-017', descricao: 'Juros Pagos', tipo: 'Despesa', especie: 'Financeira', categoria: 'Despesas Financeiras', idCategoria: 'CAT-007', status: 'Ativo' },
-  { idTipo: 'TC-018', descricao: 'Multas e Encargos', tipo: 'Despesa', especie: 'Financeira', categoria: 'Despesas Financeiras', idCategoria: 'CAT-007', status: 'Inativo' },
-];
+const formatTipoId = (id: number) => `TC-${String(id).padStart(3, '0')}`;
+const isActiveStatus = (status: ApiTipoConta['status']) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const mapApiCategoriaToCategoria = (categoria: ApiCategoria): Categoria => ({
+  id: String(categoria.id),
+  descricao: categoria.description,
+  tipo: categoria.type,
+  especie: categoria.specie || '',
+});
+
+const mapApiTipoToTipo = (tipo: ApiTipoConta): TipoConta => ({
+  id: tipo.id,
+  idTipo: formatTipoId(tipo.id),
+  descricao: tipo.description,
+  tipo: tipo.type,
+  especie: tipo.specie || tipo.category?.specie || '',
+  categoria: tipo.category?.description || '',
+  idCategoria: String(tipo.categoryId),
+  status: isActiveStatus(tipo.status) ? 'Ativo' : 'Inativo',
+});
 
 export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavigateToCategorias: () => void; onBack: () => void }) {
-  const [tiposContas, setTiposContas] = useState<TipoConta[]>(mockTiposContas);
-  const [filteredTipos, setFilteredTipos] = useState<TipoConta[]>(mockTiposContas);
+  const [tiposContas, setTiposContas] = useState<TipoConta[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [filteredTipos, setFilteredTipos] = useState<TipoConta[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [filtroStatus, setFiltroStatus] = useState('Todos');
@@ -68,6 +102,8 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   
   const [sortColumn, setSortColumn] = useState<keyof TipoConta | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     idTipo: '',
@@ -75,7 +111,92 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     tipo: 'Receita',
     especie: '',
     idCategoria: '',
+    status: 'Ativo',
   });
+
+  const applyFilters = (source = tiposContas) => {
+    let filtered = source;
+
+    if (debouncedSearchTerm) {
+      filtered = filtered.filter(tipo =>
+        tipo.idTipo.toLowerCase().includes(debouncedSearchTerm) ||
+        tipo.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        tipo.categoria.toLowerCase().includes(debouncedSearchTerm)
+      );
+    }
+
+    if (filtroTipo !== 'Todos') {
+      filtered = filtered.filter(tipo => tipo.tipo === filtroTipo);
+    }
+
+    if (filtroStatus !== 'Todos') {
+      filtered = filtered.filter(tipo => tipo.status === filtroStatus);
+    }
+
+    if (filtroCategoria !== 'Todas') {
+      filtered = filtered.filter(tipo => tipo.categoria === filtroCategoria);
+    }
+
+    setFilteredTipos(filtered);
+  };
+
+  const fetchTiposContas = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/account-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar tipos de contas.');
+    }
+
+    const mappedTipos = ((result.data || []) as ApiTipoConta[]).map(mapApiTipoToTipo);
+    setTiposContas(mappedTipos);
+    applyFilters(mappedTipos);
+  };
+
+  const fetchCategorias = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/category-types`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar categorias.');
+    }
+
+    const mappedCategorias = ((result.data || []) as ApiCategoria[])
+      .filter((categoria) => categoria.status !== false && categoria.status !== 0)
+      .map(mapApiCategoriaToCategoria);
+    setCategorias(mappedCategorias);
+  };
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([fetchCategorias(), fetchTiposContas()]);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar dados de tipos de contas.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [debouncedSearchTerm, filtroTipo, filtroStatus, filtroCategoria, tiposContas]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim().toLowerCase());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleSort = (column: keyof TipoConta) => {
     if (sortColumn === column) {
@@ -95,34 +216,11 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const handleSearch = () => {
-    let filtered = tiposContas;
-
-    if (searchTerm) {
-      filtered = filtered.filter(tipo =>
-        tipo.idTipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tipo.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tipo.categoria.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (filtroTipo !== 'Todos') {
-      filtered = filtered.filter(tipo => tipo.tipo === filtroTipo);
-    }
-
-    if (filtroStatus !== 'Todos') {
-      filtered = filtered.filter(tipo => tipo.status === filtroStatus);
-    }
-
-    if (filtroCategoria !== 'Todas') {
-      filtered = filtered.filter(tipo => tipo.categoria === filtroCategoria);
-    }
-
-    setFilteredTipos(filtered);
-  };
+  const handleSearch = () => applyFilters();
 
   const handleClearFilters = () => {
     setSearchTerm('');
+    setDebouncedSearchTerm('');
     setFiltroTipo('Todos');
     setFiltroStatus('Todos');
     setFiltroCategoria('Todas');
@@ -137,6 +235,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       tipo: 'Receita',
       especie: '',
       idCategoria: '',
+      status: 'Ativo',
     });
     setDialogOpen(true);
   };
@@ -149,6 +248,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       tipo: tipo.tipo,
       especie: tipo.especie,
       idCategoria: tipo.idCategoria,
+      status: tipo.status,
     });
     setDialogOpen(true);
   };
@@ -158,51 +258,89 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     setViewDialogOpen(true);
   };
 
-  const handleDelete = (idTipo: string) => {
-    if (confirm('Deseja realmente excluir este tipo de conta?')) {
-      setTiposContas(tiposContas.filter(t => t.idTipo !== idTipo));
-      setFilteredTipos(filteredTipos.filter(t => t.idTipo !== idTipo));
+  const handleDelete = async (tipo: TipoConta) => {
+    if (!confirm('Deseja realmente excluir este tipo de conta?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/account-types/${tipo.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao excluir tipo de conta.');
+      }
+
+      const updatedTipos = tiposContas.filter(t => t.id !== tipo.id);
+      setTiposContas(updatedTipos);
+      applyFilters(updatedTipos);
       toast.success('Tipo de conta excluído com sucesso!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de conta.');
     }
   };
 
-  const handleSave = () => {
-    const categoria = mockCategorias.find(c => c.id === formData.idCategoria);
-    
-    if (editingTipo) {
-      // Editar
-      const updatedTipos = tiposContas.map(t =>
-        t.idTipo === editingTipo.idTipo
-          ? {
-              ...t,
-              descricao: formData.descricao,
-              tipo: formData.tipo as 'Receita' | 'Despesa',
-              especie: formData.especie || categoria?.especie || '',
-              categoria: categoria?.descricao || '',
-              idCategoria: formData.idCategoria,
-            }
-          : t
-      );
-      setTiposContas(updatedTipos);
-      setFilteredTipos(updatedTipos);
-      toast.success('Tipo de conta atualizado com sucesso!');
-    } else {
-      // Adicionar
-      const newTipo: TipoConta = {
-        idTipo: formData.idTipo || `TC-${String(tiposContas.length + 1).padStart(3, '0')}`,
-        descricao: formData.descricao,
-        tipo: formData.tipo as 'Receita' | 'Despesa',
-        especie: formData.especie || categoria?.especie || '',
-        categoria: categoria?.descricao || '',
-        idCategoria: formData.idCategoria,
-        status: 'Ativo',
-      };
-      setTiposContas([...tiposContas, newTipo]);
-      setFilteredTipos([...tiposContas, newTipo]);
-      toast.success('Tipo de conta cadastrado com sucesso!');
+  const handleSave = async () => {
+    const categoria = categorias.find(c => c.id === formData.idCategoria);
+    if (!formData.descricao.trim() || !formData.tipo || !formData.idCategoria) {
+      toast.error('Preencha os campos obrigatórios.');
+      return;
     }
     
-    setDialogOpen(false);
+    setIsSaving(true);
+
+    try {
+      const isEditing = Boolean(editingTipo);
+      const endpoint = isEditing ? `${getApiBaseUrl()}/api/account-types/${editingTipo!.id}` : `${getApiBaseUrl()}/api/account-types`;
+      const method = isEditing ? 'PUT' : 'POST';
+      const nextStatus = formData.status === 'Ativo';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          description: formData.descricao.trim(),
+          type: formData.tipo,
+          specie: formData.especie.trim() || categoria?.especie || null,
+          categoryId: Number(formData.idCategoria),
+          status: nextStatus,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao salvar tipo de conta.');
+      }
+
+      toast.success(isEditing ? 'Tipo de conta atualizado com sucesso!' : 'Tipo de conta cadastrado com sucesso!');
+      if (isEditing && editingTipo) {
+        const updatedTipos = tiposContas.map((tipo) =>
+          tipo.id === editingTipo.id
+            ? {
+                ...tipo,
+                descricao: formData.descricao.trim(),
+                tipo: formData.tipo as 'Receita' | 'Despesa',
+                especie: formData.especie.trim() || categoria?.especie || '',
+                categoria: categoria?.descricao || tipo.categoria,
+                idCategoria: formData.idCategoria,
+                status: nextStatus ? 'Ativo' : 'Inativo',
+              }
+            : tipo,
+        );
+        setTiposContas(updatedTipos);
+        applyFilters(updatedTipos);
+      }
+      setDialogOpen(false);
+      setEditingTipo(null);
+      await fetchTiposContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar tipo de conta.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const totalAtivos = filteredTipos.filter(t => t.status === 'Ativo').length;
@@ -330,10 +468,6 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </Button>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 sm:w-auto">
-                <Search className="w-4 h-4 mr-2" />
-                Buscar
-              </Button>
               {(searchTerm || filtroTipo !== 'Todos' || filtroStatus !== 'Todos' || filtroCategoria !== 'Todas') && (
                 <Button variant="outline" onClick={handleClearFilters}>
                   <X className="w-4 h-4 mr-2" />
@@ -381,7 +515,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todas">Todas</SelectItem>
-                    {mockCategorias.map(cat => (
+                    {categorias.map(cat => (
                       <SelectItem key={cat.id} value={cat.descricao}>
                         {cat.descricao}
                       </SelectItem>
@@ -447,7 +581,21 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTipos.map((tipo) => (
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Carregando tipos de contas...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && sortedTipos.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Nenhum tipo de conta encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && sortedTipos.map((tipo) => (
                   <TableRow key={tipo.idTipo}>
                     <TableCell className="font-mono">{tipo.idTipo}</TableCell>
                     <TableCell>{tipo.descricao}</TableCell>
@@ -484,7 +632,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(tipo.idTipo)}
+                          onClick={() => handleDelete(tipo)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -513,16 +661,16 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="idTipo">ID Tipo</Label>
-              <Input 
-                id="idTipo" 
-                placeholder="Ex: TC-001" 
-                value={formData.idTipo}
-                onChange={(e) => setFormData({ ...formData, idTipo: e.target.value })}
-                disabled={!!editingTipo}
-              />
-            </div>
+            {editingTipo && (
+              <div className="space-y-2">
+                <Label htmlFor="idTipo">ID Tipo</Label>
+                <Input
+                  id="idTipo"
+                  value={formData.idTipo}
+                  disabled
+                />
+              </div>
+            )}
             <div className="space-y-2 col-span-2">
               <Label htmlFor="descricao">Descrição</Label>
               <Input 
@@ -563,7 +711,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <Select 
                 value={formData.idCategoria} 
                 onValueChange={(value) => {
-                  const cat = mockCategorias.find(c => c.id === value);
+                  const cat = categorias.find(c => c.id === value);
                   setFormData({ 
                     ...formData, 
                     idCategoria: value,
@@ -575,15 +723,23 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockCategorias
+                  {categorias
                     .filter(cat => cat.tipo === formData.tipo)
                     .map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>
-                        {cat.id} - {cat.descricao}
+                        {`CAT-${String(Number(cat.id)).padStart(3, '0')}`} - {cat.descricao}
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="status"
+                checked={formData.status === 'Ativo'}
+                onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
+              />
+              <Label htmlFor="status">Ativo</Label>
             </div>
           </div>
           <DialogFooter>
@@ -593,9 +749,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <Button 
               className="bg-green-600 hover:bg-green-700" 
               onClick={handleSave}
-              disabled={!formData.descricao || !formData.tipo || !formData.idCategoria}
+              disabled={isSaving || !formData.descricao || !formData.tipo || !formData.idCategoria}
             >
-              {editingTipo ? 'Atualizar' : 'Salvar'}
+              {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>
