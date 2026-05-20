@@ -408,7 +408,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <Button 
                 variant="outline" 
                 onClick={onBack}
-                className="flex items-center gap-2"
+                className="cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Voltar
@@ -426,14 +426,14 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
-                className="bg-blue-50 hover:bg-blue-100 text-blue-600"
+                className="cursor-pointer disabled:cursor-not-allowed bg-blue-50 hover:bg-blue-100 text-blue-600"
                 onClick={onNavigateToCategorias}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Gerenciar Categorias
               </Button>
               <Button 
-                className="bg-green-600 hover:bg-green-700"
+                className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700"
                 onClick={handleAdd}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -461,6 +461,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </div>
               <Button
                 variant="outline"
+                className="cursor-pointer disabled:cursor-not-allowed"
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter className="w-4 h-4 mr-2" />
@@ -469,7 +470,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               {(searchTerm || filtroTipo !== 'Todos' || filtroStatus !== 'Todos' || filtroCategoria !== 'Todas') && (
-                <Button variant="outline" onClick={handleClearFilters}>
+                <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleClearFilters}>
                   <X className="w-4 h-4 mr-2" />
                   Limpar
                 </Button>
@@ -482,13 +483,13 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <div className="space-y-2">
                 <Label>Tipo</Label>
                 <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-                  <SelectTrigger>
+                  <SelectTrigger className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todos">Todos</SelectItem>
-                    <SelectItem value="Receita">Receita</SelectItem>
-                    <SelectItem value="Despesa">Despesa</SelectItem>
+                    <SelectItem value="Todos" className="cursor-pointer">Todos</SelectItem>
+                    <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
+                    <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -496,13 +497,13 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                  <SelectTrigger>
+                  <SelectTrigger className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todos">Todos</SelectItem>
-                    <SelectItem value="Ativo">Ativo</SelectItem>
-                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Todos" className="cursor-pointer">Todos</SelectItem>
+                    <SelectItem value="Ativo" className="cursor-pointer">Ativo</SelectItem>
+                    <SelectItem value="Inativo" className="cursor-pointer">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -510,13 +511,13 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-                  <SelectTrigger>
+                  <SelectTrigger className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todas">Todas</SelectItem>
+                    <SelectItem value="Todas" className="cursor-pointer">Todas</SelectItem>
                     {categorias.map(cat => (
-                      <SelectItem key={cat.id} value={cat.descricao}>
+                      <SelectItem key={cat.id} value={cat.descricao} className="cursor-pointer">
                         {cat.descricao}
                       </SelectItem>
                     ))}
@@ -617,7 +618,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleView(tipo)}
-                          className="text-blue-600 hover:text-blue-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-blue-600 hover:text-blue-700"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -625,7 +626,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleEdit(tipo)}
-                          className="text-gray-600 hover:text-gray-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -633,7 +634,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDelete(tipo)}
-                          className="text-red-600 hover:text-red-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -688,12 +689,12 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   setFormData({ ...formData, tipo: value, idCategoria: '', especie: '' });
                 }}
               >
-                <SelectTrigger id="tipo">
+                <SelectTrigger id="tipo" className="cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Receita">Receita</SelectItem>
-                  <SelectItem value="Despesa">Despesa</SelectItem>
+                  <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
+                  <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -719,14 +720,14 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   });
                 }}
               >
-                <SelectTrigger id="categoria">
+                <SelectTrigger id="categoria" className="cursor-pointer">
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
                   {categorias
                     .filter(cat => cat.tipo === formData.tipo)
                     .map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>
+                      <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
                         {`CAT-${String(Number(cat.id)).padStart(3, '0')}`} - {cat.descricao}
                       </SelectItem>
                     ))}
@@ -736,6 +737,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <div className="flex items-center gap-2">
               <Switch
                 id="status"
+                className="cursor-pointer"
                 checked={formData.status === 'Ativo'}
                 onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
               />
@@ -743,11 +745,11 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
             <Button 
-              className="bg-green-600 hover:bg-green-700" 
+              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" 
               onClick={handleSave}
               disabled={isSaving || !formData.descricao || !formData.tipo || !formData.idCategoria}
             >
@@ -804,7 +806,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setViewDialogOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>

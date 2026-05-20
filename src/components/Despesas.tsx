@@ -439,13 +439,13 @@ export default function Despesas() {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="sm:w-auto" disabled>
+              <Button variant="outline" className="sm:w-auto disabled:cursor-not-allowed" disabled>
                 <Download className="w-4 h-4 mr-2" />
                 Exportar
               </Button>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Despesa
                   </Button>
@@ -470,12 +470,12 @@ export default function Despesas() {
                     <div className="space-y-2">
                       <Label htmlFor="contaCaixa">Conta Caixa</Label>
                       <Select value={formData.cashAccountId} onValueChange={(value) => setFormData((prev) => ({ ...prev, cashAccountId: value }))}>
-                        <SelectTrigger id="contaCaixa">
+                        <SelectTrigger id="contaCaixa" className="cursor-pointer">
                           <SelectValue placeholder="Selecione a conta" />
                         </SelectTrigger>
                         <SelectContent>
                           {cashAccounts.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
+                            <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                               {item.name}
                             </SelectItem>
                           ))}
@@ -485,12 +485,12 @@ export default function Despesas() {
                     <div className="space-y-2">
                       <Label htmlFor="tipoConta">Tipo de Conta</Label>
                       <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
-                        <SelectTrigger id="tipoConta">
+                        <SelectTrigger id="tipoConta" className="cursor-pointer">
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
                           {accountTypes.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
+                            <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                               {item.description} {item.category?.description ? `- ${item.category.description}` : ''}
                             </SelectItem>
                           ))}
@@ -515,14 +515,15 @@ export default function Despesas() {
                         type="date"
                         value={formData.dataDespesa}
                         onChange={(e) => setFormData((prev) => ({ ...prev, dataDespesa: e.target.value }))}
+                        className="cursor-pointer"
                       />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={handleCloseDialog}>
+                    <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
                       Cancelar
                     </Button>
-                    <Button className="bg-green-600 hover:bg-green-700" onClick={saveDespesa} disabled={isSaving}>
+                    <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveDespesa} disabled={isSaving}>
                       {isSaving ? 'Salvando...' : editingDespesa ? 'Atualizar' : 'Salvar'}
                     </Button>
                   </DialogFooter>
@@ -536,13 +537,13 @@ export default function Despesas() {
               <div className="space-y-2">
                 <Label htmlFor="accountTypeFiltro">Tipo de Conta</Label>
                 <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro">
+                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
                     {accountTypes.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                         {item.description}
                       </SelectItem>
                     ))}
@@ -553,13 +554,13 @@ export default function Despesas() {
               <div className="space-y-2">
                 <Label htmlFor="cashAccountFiltro">Conta Caixa</Label>
                 <Select value={cashAccountFiltro} onValueChange={setCashAccountFiltro}>
-                  <SelectTrigger id="cashAccountFiltro">
+                  <SelectTrigger id="cashAccountFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="todas" className="cursor-pointer">Todas</SelectItem>
                     {cashAccounts.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                         {item.name}
                       </SelectItem>
                     ))}
@@ -569,12 +570,12 @@ export default function Despesas() {
 
               <div className="space-y-2">
                 <Label htmlFor="dataInicioFiltro">Data Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} />
+                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dataFimFiltro">Data Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} />
+                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer" />
               </div>
             </div>
           )}
@@ -633,13 +634,13 @@ export default function Despesas() {
                     <TableCell>{despesa.dataDespesa ? formatDateBR(despesa.dataDespesa) : '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleViewDetails(despesa)} title="Visualizar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(despesa)} title="Visualizar">
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(despesa)} title="Editar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(despesa)} title="Editar">
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="text-red-600 hover:text-red-700" title="Excluir">
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -695,7 +696,7 @@ export default function Despesas() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>

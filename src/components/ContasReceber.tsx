@@ -773,13 +773,13 @@ export default function ContasReceber() {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="sm:w-auto" disabled>
+              <Button variant="outline" className="sm:w-auto disabled:cursor-not-allowed" disabled>
                 <Download className="w-4 h-4 mr-2" />
                 Exportar
               </Button>
               <Dialog open={massDialogOpen} onOpenChange={(open) => (open ? setMassDialogOpen(true) : handleCloseMassDialog())}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed border-blue-600 text-blue-600 hover:bg-blue-50">
                     <Copy className="w-4 h-4 mr-2" />
                     Gerar em Massa
                   </Button>
@@ -810,12 +810,12 @@ export default function ContasReceber() {
                           value={massForm.origemCliente ? 'cliente' : 'operacao'}
                           onValueChange={(value) => setMassForm((prev) => ({ ...prev, origemCliente: value === 'cliente' }))}
                         >
-                          <SelectTrigger id="origemCliente">
+                          <SelectTrigger id="origemCliente" className="cursor-pointer">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="cliente">Cliente</SelectItem>
-                            <SelectItem value="operacao">Operação</SelectItem>
+                            <SelectItem value="cliente" className="cursor-pointer">Cliente</SelectItem>
+                            <SelectItem value="operacao" className="cursor-pointer">Operação</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -835,12 +835,12 @@ export default function ContasReceber() {
                       <div className="space-y-2">
                         <Label htmlFor="tipoContaMassa">Tipo de Conta <span className="text-red-600">*</span></Label>
                         <Select value={massForm.accountTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, accountTypeId: value }))}>
-                          <SelectTrigger id="tipoContaMassa" aria-required="true">
+                          <SelectTrigger id="tipoContaMassa" aria-required="true" className="cursor-pointer">
                             <SelectValue placeholder="Selecione o tipo" />
                           </SelectTrigger>
                           <SelectContent>
                             {accountTypes.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
+                              <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                                 {item.description} {item.category?.description ? `- ${item.category.description}` : ''}
                               </SelectItem>
                             ))}
@@ -867,12 +867,12 @@ export default function ContasReceber() {
                       <div className="space-y-2">
                         <Label htmlFor="formaPgtoMassa">Forma de Pagamento <span className="text-red-600">*</span></Label>
                         <Select value={massForm.paymentTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, paymentTypeId: value }))}>
-                          <SelectTrigger id="formaPgtoMassa" aria-required="true">
+                          <SelectTrigger id="formaPgtoMassa" aria-required="true" className="cursor-pointer">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
                             {paymentTypes.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
+                              <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                                 {item.name}
                               </SelectItem>
                             ))}
@@ -938,6 +938,7 @@ export default function ContasReceber() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data da primeira parcela.', 'Informe uma data válida.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, dataInicio: e.target.value }))}
+                          className="cursor-pointer"
                         />
                       </div>
                       <div className="col-span-full space-y-2">
@@ -958,10 +959,10 @@ export default function ContasReceber() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={handleCloseMassDialog}>
+                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseMassDialog}>
                         Cancelar
                       </Button>
-                      <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isMassSaving}>
+                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" disabled={isMassSaving}>
                         <Copy className="w-4 h-4 mr-2" />
                         {isMassSaving ? 'Gerando...' : 'Gerar Contas'}
                       </Button>
@@ -971,7 +972,7 @@ export default function ContasReceber() {
               </Dialog>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Conta
                   </Button>
@@ -1001,12 +1002,12 @@ export default function ContasReceber() {
                       <div className="space-y-2">
                         <Label htmlFor="tipoConta">Tipo de Conta <span className="text-red-600">*</span></Label>
                         <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
-                          <SelectTrigger id="tipoConta" aria-required="true">
+                          <SelectTrigger id="tipoConta" aria-required="true" className="cursor-pointer">
                             <SelectValue placeholder="Selecione o tipo" />
                           </SelectTrigger>
                           <SelectContent>
                             {accountTypes.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
+                              <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                                 {item.description} {item.category?.description ? `- ${item.category.description}` : ''}
                               </SelectItem>
                             ))}
@@ -1033,12 +1034,12 @@ export default function ContasReceber() {
                       <div className="space-y-2">
                         <Label htmlFor="formaPgto">Forma de Pagamento <span className="text-red-600">*</span></Label>
                         <Select value={formData.paymentTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentTypeId: value }))}>
-                          <SelectTrigger id="formaPgto" aria-required="true">
+                          <SelectTrigger id="formaPgto" aria-required="true" className="cursor-pointer">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
                             {paymentTypes.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
+                              <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                                 {item.name}
                               </SelectItem>
                             ))}
@@ -1099,6 +1100,7 @@ export default function ContasReceber() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data nominal.', 'A data nominal não pode ser maior que a data de vencimento.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, dataNominal: e.target.value }))}
+                          className="cursor-pointer"
                         />
                       </div>
                       <div className="space-y-2">
@@ -1113,6 +1115,7 @@ export default function ContasReceber() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data de vencimento.', 'A data de vencimento não pode ser menor que a data nominal.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, dataVencimento: e.target.value }))}
+                          className="cursor-pointer"
                         />
                       </div>
                       <div className="space-y-2">
@@ -1120,6 +1123,7 @@ export default function ContasReceber() {
                         <div className="flex h-10 items-center gap-3 rounded-md border border-input px-3">
                           <Switch
                             id="recebido"
+                            className="cursor-pointer"
                             checked={formData.status === 'recebido'}
                             onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, status: checked ? 'recebido' : 'pendente' }))}
                           />
@@ -1131,10 +1135,10 @@ export default function ContasReceber() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
                         Cancelar
                       </Button>
-                      <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSaving}>
+                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" disabled={isSaving}>
                         {isSaving ? 'Salvando...' : editingConta ? 'Atualizar' : 'Salvar'}
                       </Button>
                     </DialogFooter>
@@ -1149,14 +1153,14 @@ export default function ContasReceber() {
               <div className="space-y-2">
                 <Label htmlFor="statusFiltro">Status</Label>
                 <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-                  <SelectTrigger id="statusFiltro">
+                  <SelectTrigger id="statusFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="pendente">Pendente</SelectItem>
-                    <SelectItem value="recebido">Recebido</SelectItem>
-                    <SelectItem value="vencido">Vencido</SelectItem>
+                    <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
+                    <SelectItem value="pendente" className="cursor-pointer">Pendente</SelectItem>
+                    <SelectItem value="recebido" className="cursor-pointer">Recebido</SelectItem>
+                    <SelectItem value="vencido" className="cursor-pointer">Vencido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1164,13 +1168,13 @@ export default function ContasReceber() {
               <div className="space-y-2">
                 <Label htmlFor="paymentTypeFiltro">Forma Pgto</Label>
                 <Select value={paymentTypeFiltro} onValueChange={setPaymentTypeFiltro}>
-                  <SelectTrigger id="paymentTypeFiltro">
+                  <SelectTrigger id="paymentTypeFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
+                    <SelectItem value="todos" className="cursor-pointer">Todas</SelectItem>
                     {paymentTypes.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                         {item.name}
                       </SelectItem>
                     ))}
@@ -1181,13 +1185,13 @@ export default function ContasReceber() {
               <div className="space-y-2">
                 <Label htmlFor="accountTypeFiltro">Tipo de Conta</Label>
                 <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro">
+                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
                     {accountTypes.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
                         {item.description}
                       </SelectItem>
                     ))}
@@ -1198,13 +1202,13 @@ export default function ContasReceber() {
               <div className="space-y-2">
                 <Label htmlFor="originFiltro">Origem</Label>
                 <Select value={originFiltro} onValueChange={setOriginFiltro}>
-                  <SelectTrigger id="originFiltro">
+                  <SelectTrigger id="originFiltro" className="cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="todas" className="cursor-pointer">Todas</SelectItem>
                     {originsWithAccounts.map((origin) => (
-                      <SelectItem key={origin.id} value={String(origin.id)}>
+                      <SelectItem key={origin.id} value={String(origin.id)} className="cursor-pointer">
                         {origin.description || `Origem ${origin.id}`}
                       </SelectItem>
                     ))}
@@ -1214,12 +1218,12 @@ export default function ContasReceber() {
 
               <div className="space-y-2">
                 <Label htmlFor="dataInicioFiltro">Vencimento Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} />
+                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dataFimFiltro">Vencimento Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} />
+                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer" />
               </div>
             </div>
           )}
@@ -1297,7 +1301,7 @@ export default function ContasReceber() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleMarcarRecebido(conta)}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          className="cursor-pointer disabled:cursor-not-allowed text-green-600 hover:text-green-700 hover:bg-green-50"
                           title="Marcar como Recebido"
                         >
                           <Check className="w-4 h-4" />
@@ -1308,13 +1312,13 @@ export default function ContasReceber() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleViewDetails(conta)} title="Visualizar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(conta)} title="Visualizar">
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(conta)} title="Editar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(conta)} title="Editar">
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="text-red-600 hover:text-red-700" title="Excluir">
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -1390,7 +1394,7 @@ export default function ContasReceber() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
@@ -1408,7 +1412,7 @@ export default function ContasReceber() {
             <p className="mt-1 text-gray-900">{selectedOriginName}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOriginDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setOriginDialogOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
@@ -1424,8 +1428,8 @@ export default function ContasReceber() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMarcarRecebido} className="bg-green-600 hover:bg-green-700">
+            <AlertDialogCancel className="cursor-pointer">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMarcarRecebido} className="cursor-pointer bg-green-600 hover:bg-green-700">
               Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -418,7 +418,7 @@ export default function Usuarios() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Usuário
                 </Button>
@@ -450,25 +450,25 @@ export default function Usuarios() {
                   <div className="space-y-2">
                     <Label htmlFor="perfil">Perfil de Acesso</Label>
                     <Select value={formData.perfil} onValueChange={(value: 'admin' | 'comum') => setFormData((prev) => ({ ...prev, perfil: value }))}>
-                      <SelectTrigger id="perfil">
+                      <SelectTrigger id="perfil" className="cursor-pointer">
                         <SelectValue placeholder="Selecione o perfil" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin - Acesso Total</SelectItem>
-                        <SelectItem value="comum">Comum - Acesso Operacional</SelectItem>
+                        <SelectItem value="admin" className="cursor-pointer">Admin - Acesso Total</SelectItem>
+                        <SelectItem value="comum" className="cursor-pointer">Comum - Acesso Operacional</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="ativo">Usuário Ativo</Label>
-                    <Switch id="ativo" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
+                    <Switch id="ativo" className="cursor-pointer" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={handleCloseDialog} disabled={isSaving}>
+                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog} disabled={isSaving}>
                     Cancelar
                   </Button>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={saveUsuario} disabled={isSaving}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveUsuario} disabled={isSaving}>
                     {isSaving ? 'Salvando...' : editingUsuario ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
@@ -523,18 +523,18 @@ export default function Usuarios() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(usuario.status)}
-                        <Switch checked={usuario.status === 'ativo'} onCheckedChange={() => toggleStatus(usuario)} />
+                        <Switch className="cursor-pointer" checked={usuario.status === 'ativo'} onCheckedChange={() => toggleStatus(usuario)} />
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleViewDetails(usuario)} title="Visualizar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(usuario)} title="Visualizar">
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(usuario)} title="Editar">
+                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(usuario)} title="Editar">
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(usuario.id)} className="text-red-600 hover:text-red-700" title="Excluir">
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(usuario.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -583,7 +583,7 @@ export default function Usuarios() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>

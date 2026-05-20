@@ -98,7 +98,7 @@ function ContaTreeItem({ conta }: { conta: ContaItem }) {
     <div className="ml-0">
       <div className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg group">
         {conta.children && conta.children.length > 0 ? (
-          <button onClick={() => setIsOpen(!isOpen)} className="text-gray-500 hover:text-gray-700">
+          <button onClick={() => setIsOpen(!isOpen)} className="cursor-pointer text-gray-500 hover:text-gray-700">
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         ) : (
@@ -182,7 +182,7 @@ export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: 
               </CardDescription>
             </div>
             <Button 
-              className="bg-blue-600 hover:bg-blue-700"
+              className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700"
               onClick={onNavigateToTipos}
             >
               <Settings className="w-4 h-4 mr-2" />

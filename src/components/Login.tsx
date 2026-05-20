@@ -17,6 +17,17 @@ type LoginProps = {
   onLogin: (payload: { user: AuthUser; token: string }) => void;
 };
 
+const getLoginErrorMessage = (error?: string) => {
+  switch (error) {
+    case 'Invalid username or password':
+      return 'Usuário ou senha inválidos.';
+    case 'Inactive user':
+      return 'Usuário inativo. Entre em contato com o administrador.';
+    default:
+      return error || 'Usuário ou senha inválidos.';
+  }
+};
+
 export default function Login({ onLogin }: LoginProps) {
   const [usuario, setUsuario] = useState('');
   const [senha, setSenha] = useState('');
@@ -47,7 +58,7 @@ export default function Login({ onLogin }: LoginProps) {
       const result = await response.json();
 
       if (!response.ok || !result?.success || !result?.data?.token || !result?.data?.user) {
-        setErrorMessage(result?.error || 'Usuário ou senha inválidos.');
+        setErrorMessage(getLoginErrorMessage(result?.error));
         return;
       }
 

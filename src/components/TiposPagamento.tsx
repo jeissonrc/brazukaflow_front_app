@@ -329,7 +329,7 @@ export default function TiposPagamento() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Tipo
                 </Button>
@@ -361,15 +361,15 @@ export default function TiposPagamento() {
                     />
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Switch id="ativo" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
+                    <Switch id="ativo" className="cursor-pointer" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
                     <Label htmlFor="ativo">Ativo</Label>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={handleCloseDialog}>
+                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={saveTipoPagamento} disabled={isSaving}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveTipoPagamento} disabled={isSaving}>
                     {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
@@ -441,6 +441,7 @@ export default function TiposPagamento() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Switch
+                        className="cursor-pointer"
                         checked={tipo.ativo}
                         onCheckedChange={() => handleToggleAtivo(tipo)}
                       />
@@ -462,6 +463,7 @@ export default function TiposPagamento() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="cursor-pointer disabled:cursor-not-allowed"
                         onClick={() => handleViewDetails(tipo)}
                         title="Visualizar"
                       >
@@ -470,6 +472,7 @@ export default function TiposPagamento() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="cursor-pointer disabled:cursor-not-allowed"
                         onClick={() => handleEdit(tipo)}
                         title="Editar"
                       >
@@ -479,7 +482,7 @@ export default function TiposPagamento() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(tipo.id)}
-                        className="text-red-600 hover:text-red-700"
+                        className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
                         title="Excluir"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -534,7 +537,7 @@ export default function TiposPagamento() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
