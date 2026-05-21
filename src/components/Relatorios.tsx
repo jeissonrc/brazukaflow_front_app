@@ -1083,7 +1083,7 @@ export default function Relatorios() {
         (origem) => `
           <tr>
             <td>${escapeHtml(origem.origem)}</td>
-            <td class="center">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Não Pessoa')}</td>
+            <td class="center">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Operação')}</td>
             <td class="center">${escapeHtml(origem.quantidade)}</td>
             <td class="nowrap">${escapeHtml(formatCurrency(origem.total))}</td>
             <td class="nowrap">${escapeHtml(formatCurrency(origem.realizado))}</td>
@@ -1243,7 +1243,7 @@ export default function Relatorios() {
         (origem) => `
           <Row>
             <Cell ss:StyleID="Cell"><Data ss:Type="String">${escapeHtml(origem.origem)}</Data></Cell>
-            <Cell ss:StyleID="CellCenter"><Data ss:Type="String">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Não Pessoa')}</Data></Cell>
+            <Cell ss:StyleID="CellCenter"><Data ss:Type="String">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Operação')}</Data></Cell>
             <Cell ss:StyleID="CellCenter"><Data ss:Type="Number">${origem.quantidade}</Data></Cell>
             <Cell ss:StyleID="Currency"><Data ss:Type="Number">${origem.total}</Data></Cell>
             <Cell ss:StyleID="Currency"><Data ss:Type="Number">${origem.realizado}</Data></Cell>
@@ -2226,7 +2226,7 @@ export default function Relatorios() {
                         <SelectContent>
                           <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
                           <SelectItem value="pessoa" className="cursor-pointer">Pessoa</SelectItem>
-                          <SelectItem value="nao-pessoa" className="cursor-pointer">Não Pessoa</SelectItem>
+                          <SelectItem value="nao-pessoa" className="cursor-pointer">Operação</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2446,7 +2446,7 @@ export default function Relatorios() {
                           <TableCell>
                             <Badge variant="outline">{origem.origem}</Badge>
                           </TableCell>
-                          <TableCell>{origem.pessoa ? 'Pessoa' : 'Não Pessoa'}</TableCell>
+                          <TableCell>{origem.pessoa ? 'Pessoa' : 'Operação'}</TableCell>
                           <TableCell>{origem.quantidade}</TableCell>
                           <TableCell>{formatCurrency(origem.total)}</TableCell>
                           <TableCell className="text-green-700">{formatCurrency(origem.realizado)}</TableCell>

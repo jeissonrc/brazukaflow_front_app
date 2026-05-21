@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Search, CreditCard, CheckCircle, XCircle, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Search, CreditCard, CheckCircle, XCircle, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from './ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { getAuthToken } from '../lib/auth';
 
 type ApiTipoPagamento = {
@@ -31,11 +32,57 @@ type TipoPagamentoForm = {
   ativo: boolean;
 };
 
+type TiposPagamentoPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type TiposPagamentoSummary = {
+  total: number;
+  ativos: number;
+  inativos: number;
+};
+
+type TiposPagamentoPaginatedResponse = {
+  items: ApiTipoPagamento[];
+  pagination: TiposPagamentoPagination;
+  summary: TiposPagamentoSummary;
+};
+
 const DEFAULT_FORM: TipoPagamentoForm = {
   nome: '',
   descricao: '',
   ativo: true,
 };
+
+const DEFAULT_PAGINATION: TiposPagamentoPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: TiposPagamentoSummary = {
+  total: 0,
+  ativos: 0,
+  inativos: 0,
+};
+
+const calculateTiposSummary = (items: TipoPagamento[]): TiposPagamentoSummary =>
+  items.reduce(
+    (acc, tipo) => {
+      acc.total += 1;
+      if (tipo.ativo) {
+        acc.ativos += 1;
+      } else {
+        acc.inativos += 1;
+      }
+      return acc;
+    },
+    { total: 0, ativos: 0, inativos: 0 },
+  );
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 
@@ -59,6 +106,12 @@ export default function TiposPagamento() {
   const [isSaving, setIsSaving] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof TipoPagamento | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<TiposPagamentoPagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<TiposPagamentoSummary>(DEFAULT_SUMMARY);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
 
   const getAuthHeaders = () => {
     const token = getAuthToken();
@@ -73,7 +126,19 @@ export default function TiposPagamento() {
   };
 
   const fetchTiposPagamento = async () => {
-    const response = await fetch(`${getApiBaseUrl()}/api/payment-types`, {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/payment-types?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     const result = await response.json();
@@ -82,24 +147,73 @@ export default function TiposPagamento() {
       throw new Error(result?.error || 'Erro ao carregar tipos de pagamento.');
     }
 
-    const apiTipos = (result.data || []) as ApiTipoPagamento[];
-    setTiposPagamento(apiTipos.map(mapApiTipoToTipo));
+    const responseData = result.data as TiposPagamentoPaginatedResponse | ApiTipoPagamento[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiTipoToTipo) : [];
+    const legacyFilteredItems = legacyItems.filter((tipo) =>
+      !debouncedSearchTerm ||
+      tipo.nome.toLowerCase().includes(debouncedSearchTerm) ||
+      tipo.descricao?.toLowerCase().includes(debouncedSearchTerm)
+    );
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+
+      const aValue = a[sortColumn];
+      const bValue = b[sortColumn];
+
+      if (aValue === undefined && bValue === undefined) return 0;
+      if (aValue === undefined) return sortDirection === 'asc' ? 1 : -1;
+      if (bValue === undefined) return sortDirection === 'asc' ? -1 : 1;
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const mappedTipos = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiTipoToTipo);
+
+    setTiposPagamento(mappedTipos);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateTiposSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    const loadTiposPagamento = async () => {
-      setIsLoading(true);
-      try {
-        await fetchTiposPagamento();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Erro ao carregar tipos de pagamento.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    fetchTiposPagamento().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar tipos de pagamento.');
+    });
+  }, [currentPage, registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection]);
 
-    loadTiposPagamento();
-  }, []);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, tiposPagamento]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -108,6 +222,20 @@ export default function TiposPagamento() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof TipoPagamento) => {
     if (sortColumn === column) {
@@ -125,36 +253,6 @@ export default function TiposPagamento() {
     return sortDirection === 'asc' ? 
       <ArrowUp className="w-4 h-4 ml-1 inline" /> : 
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
-  };
-
-  const handleToggleAtivo = async (tipo: TipoPagamento) => {
-    const nextStatus = !tipo.ativo;
-
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/payment-types/${tipo.id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      const result = await response.json();
-
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Erro ao alterar status do tipo de pagamento.');
-      }
-
-      setTiposPagamento((prev) =>
-        prev.map((item) =>
-          item.id === tipo.id
-            ? {
-                ...item,
-                ativo: nextStatus,
-              }
-            : item,
-        ),
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao alterar status.');
-    }
   };
 
   const openCreateDialog = () => {
@@ -189,8 +287,8 @@ export default function TiposPagamento() {
         throw new Error(result?.error || 'Erro ao excluir tipo de pagamento.');
       }
 
-      setTiposPagamento((prev) => prev.filter((tipo) => tipo.id !== id));
       toast.success('Tipo de pagamento excluído com sucesso.');
+      await fetchTiposPagamento();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de pagamento.');
     }
@@ -205,6 +303,35 @@ export default function TiposPagamento() {
     setDialogOpen(false);
     setEditingTipo(null);
     setFormData(DEFAULT_FORM);
+  };
+
+  const countLinkedAccounts = async (paymentTypeId: number) => {
+    const [payableResponse, receivableResponse] = await Promise.all([
+      fetch(`${getApiBaseUrl()}/api/accounts-payable?page=1&limit=1&paymentTypeId=${paymentTypeId}`, {
+        headers: getAuthHeaders(),
+      }),
+      fetch(`${getApiBaseUrl()}/api/accounts-receivable?page=1&limit=1&paymentTypeId=${paymentTypeId}`, {
+        headers: getAuthHeaders(),
+      }),
+    ]);
+
+    const payableResult = await payableResponse.json();
+    const receivableResult = await receivableResponse.json();
+
+    if (!payableResponse.ok || !payableResult?.success) {
+      throw new Error(payableResult?.error || 'Erro ao verificar vínculos em contas a pagar.');
+    }
+
+    if (!receivableResponse.ok || !receivableResult?.success) {
+      throw new Error(receivableResult?.error || 'Erro ao verificar vínculos em contas a receber.');
+    }
+
+    const payableData = payableResult.data;
+    const receivableData = receivableResult.data;
+    const payableCount = Array.isArray(payableData) ? payableData.length : Number(payableData?.pagination?.total || 0);
+    const receivableCount = Array.isArray(receivableData) ? receivableData.length : Number(receivableData?.pagination?.total || 0);
+
+    return { payableCount, receivableCount, total: payableCount + receivableCount };
   };
 
   const saveTipoPagamento = async () => {
@@ -225,6 +352,18 @@ export default function TiposPagamento() {
       const isEditing = Boolean(editingTipo);
       const endpoint = isEditing ? `${getApiBaseUrl()}/api/payment-types/${editingTipo!.id}` : `${getApiBaseUrl()}/api/payment-types`;
       const method = isEditing ? 'PUT' : 'POST';
+
+      if (isEditing && editingTipo!.ativo && !formData.ativo) {
+        const usage = await countLinkedAccounts(editingTipo!.id);
+        if (usage.total > 0) {
+          const details = [
+            usage.payableCount > 0 ? `${usage.payableCount} conta(s) a pagar` : null,
+            usage.receivableCount > 0 ? `${usage.receivableCount} conta(s) a receber` : null,
+          ].filter(Boolean).join(' e ');
+
+          throw new Error(`Este tipo de pagamento está vinculado a ${details} e não pode ser inativado.`);
+        }
+      }
 
       const response = await fetch(endpoint, {
         method,
@@ -247,31 +386,26 @@ export default function TiposPagamento() {
     }
   };
 
-  const filteredTipos = tiposPagamento.filter(tp =>
-    !debouncedSearchTerm ||
-    tp.nome.toLowerCase().includes(debouncedSearchTerm) ||
-    tp.descricao?.toLowerCase().includes(debouncedSearchTerm)
+  const sortedTipos = tiposPagamento;
+  const totalAtivos = summary.ativos;
+  const totalInativo = summary.inativos;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
   );
-
-  // Aplicar ordenação
-  const sortedTipos = [...filteredTipos].sort((a, b) => {
-    if (!sortColumn) return 0;
-    
-    const aValue = a[sortColumn];
-    const bValue = b[sortColumn];
-    
-    // Para campos opcionais como descricao
-    if (aValue === undefined && bValue === undefined) return 0;
-    if (aValue === undefined) return sortDirection === 'asc' ? 1 : -1;
-    if (bValue === undefined) return sortDirection === 'asc' ? -1 : 1;
-    
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const totalAtivos = tiposPagamento.filter(tp => tp.ativo).length;
-  const totalInativo = tiposPagamento.filter(tp => !tp.ativo).length;
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -283,7 +417,7 @@ export default function TiposPagamento() {
           </CardHeader>
           <CardContent>
             <div className="text-blue-600">
-              {tiposPagamento.length}
+              {summary.total}
             </div>
             <p className="text-gray-500">tipos de pagamento</p>
           </CardContent>
@@ -360,9 +494,16 @@ export default function TiposPagamento() {
                       onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
                     />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="ativo" className="cursor-pointer" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
-                    <Label htmlFor="ativo">Ativo</Label>
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="ativo"
+                      className="cursor-pointer"
+                      checked={formData.ativo}
+                      onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
+                    />
+                    <Label htmlFor="ativo" className={formData.ativo ? 'text-green-700' : 'text-gray-600'}>
+                      {formData.ativo ? 'Ativo' : 'Inativo'}
+                    </Label>
                   </div>
                 </div>
                 <DialogFooter>
@@ -390,109 +531,223 @@ export default function TiposPagamento() {
             Gerencie os tipos de pagamento disponíveis no sistema
           </p>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('id')}
-                >
-                  ID {getSortIcon('id')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('nome')}
-                >
-                  Nome {getSortIcon('nome')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('descricao')}
-                >
-                  Descrição {getSortIcon('descricao')}
-                </TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                    Carregando tipos de pagamento...
-                  </TableCell>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('id')}
+                  >
+                    ID {getSortIcon('id')}
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('nome')}
+                  >
+                    Nome {getSortIcon('nome')}
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('descricao')}
+                  >
+                    Descrição {getSortIcon('descricao')}
+                  </TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && sortedTipos.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                      Carregando tipos de pagamento...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && sortedTipos.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                      Nenhum tipo de pagamento encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {(!isLoading || sortedTipos.length > 0) && sortedTipos.map((tipo) => (
+                  <TableRow key={tipo.id}>
+                    <TableCell>{tipo.id}</TableCell>
+                    <TableCell>{tipo.nome}</TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {tipo.descricao || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {tipo.ativo ? (
+                          <Badge className="bg-green-100 text-green-700">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-700">
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Inativo
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="cursor-pointer disabled:cursor-not-allowed"
+                          onClick={() => handleViewDetails(tipo)}
+                          title="Visualizar"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="cursor-pointer disabled:cursor-not-allowed"
+                          onClick={() => handleEdit(tipo)}
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(tipo.id)}
+                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedTipos.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
               )}
-              {!isLoading && sortedTipos.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                    Nenhum tipo de pagamento encontrado.
-                  </TableCell>
-                </TableRow>
+            </div>
+
+            {isLoading && sortedTipos.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
               )}
-              {!isLoading && sortedTipos.map((tipo) => (
-                <TableRow key={tipo.id}>
-                  <TableCell>{tipo.id}</TableCell>
-                  <TableCell>{tipo.nome}</TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {tipo.descricao || '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        className="cursor-pointer"
-                        checked={tipo.ativo}
-                        onCheckedChange={() => handleToggleAtivo(tipo)}
-                      />
-                      {tipo.ativo ? (
-                        <Badge className="bg-green-100 text-green-700">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Ativo
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-gray-100 text-gray-700">
-                          <XCircle className="w-3 h-3 mr-1" />
-                          Inativo
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="cursor-pointer disabled:cursor-not-allowed"
-                        onClick={() => handleViewDetails(tipo)}
-                        title="Visualizar"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="cursor-pointer disabled:cursor-not-allowed"
-                        onClick={() => handleEdit(tipo)}
-                        title="Editar"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(tipo.id)}
-                        className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((pagina) => (
+                <Button
+                  key={pagina}
+                  variant={pagina === pagination.page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagina)}
+                  disabled={isLoading}
+                >
+                  {pagina}
+                </Button>
               ))}
-            </TableBody>
-          </Table>
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

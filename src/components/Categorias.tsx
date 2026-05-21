@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search, Filter, Eye, Pencil, Trash2, Folder, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Search, Filter, Eye, Pencil, Trash2, Folder, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -28,6 +28,53 @@ type Categoria = {
   especie: string;
   status: 'Ativo' | 'Inativo';
 };
+
+type CategoriasPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type CategoriasSummary = {
+  total: number;
+  ativas: number;
+  receitas: number;
+  despesas: number;
+};
+
+type CategoriasPaginatedResponse = {
+  items: ApiCategoria[];
+  pagination: CategoriasPagination;
+  summary: CategoriasSummary;
+  species?: string[];
+};
+
+const DEFAULT_PAGINATION: CategoriasPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: CategoriasSummary = {
+  total: 0,
+  ativas: 0,
+  receitas: 0,
+  despesas: 0,
+};
+
+const calculateCategoriasSummary = (items: Categoria[]): CategoriasSummary =>
+  items.reduce(
+    (acc, categoria) => {
+      acc.total += 1;
+      if (categoria.status === 'Ativo') acc.ativas += 1;
+      if (categoria.tipo === 'Receita') acc.receitas += 1;
+      if (categoria.tipo === 'Despesa') acc.despesas += 1;
+      return acc;
+    },
+    { total: 0, ativas: 0, receitas: 0, despesas: 0 },
+  );
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const formatCategoriaId = (id: number) => `CAT-${String(id).padStart(3, '0')}`;
@@ -74,6 +121,13 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<CategoriasPagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<CategoriasSummary>(DEFAULT_SUMMARY);
+  const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState({
     idCategoria: '',
@@ -110,7 +164,22 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   };
 
   const fetchCategorias = async () => {
-    const response = await fetch(`${getApiBaseUrl()}/api/category-types`, {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (filtroTipo !== 'Todos') params.set('type', filtroTipo);
+    if (filtroStatus !== 'Todos') params.set('status', filtroStatus);
+    if (filtroEspecie !== 'Todas') params.set('specie', filtroEspecie);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/category-types?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     const result = await response.json();
@@ -119,29 +188,95 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       throw new Error(result?.error || 'Erro ao carregar categorias.');
     }
 
-    const mappedCategorias = ((result.data || []) as ApiCategoria[]).map(mapApiCategoriaToCategoria);
+    const responseData = result.data as CategoriasPaginatedResponse | ApiCategoria[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiCategoriaToCategoria) : [];
+    const legacyFilteredItems = legacyItems.filter((cat) => {
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        cat.idCategoria.toLowerCase().includes(debouncedSearchTerm) ||
+        cat.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        cat.especie.toLowerCase().includes(debouncedSearchTerm);
+      const matchesTipo = filtroTipo === 'Todos' || cat.tipo === filtroTipo;
+      const matchesStatus = filtroStatus === 'Todos' || cat.status === filtroStatus;
+      const matchesEspecie = filtroEspecie === 'Todas' || cat.especie === filtroEspecie;
+
+      return matchesSearch && matchesTipo && matchesStatus && matchesEspecie;
+    });
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+
+      const aValue = a[sortColumn];
+      const bValue = b[sortColumn];
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const mappedCategorias = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiCategoriaToCategoria);
+
     setCategorias(mappedCategorias);
-    applyFilters(mappedCategorias);
+    setFilteredCategorias(mappedCategorias);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateCategoriasSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setSpeciesOptions(isLegacyArrayResponse ? Array.from(new Set(legacyItems.map((cat) => cat.especie).filter(Boolean))) : responseData?.species || []);
+    setIsLoading(false);
   };
 
   useEffect(() => {
-    const loadCategorias = async () => {
-      setIsLoading(true);
-      try {
-        await fetchCategorias();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Erro ao carregar categorias.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadCategorias();
-  }, []);
+    fetchCategorias().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar categorias.');
+    });
+  }, [
+    currentPage,
+    registrosPorPagina,
+    debouncedSearchTerm,
+    filtroTipo,
+    filtroStatus,
+    filtroEspecie,
+    sortColumn,
+    sortDirection,
+  ]);
 
   useEffect(() => {
-    applyFilters();
-  }, [debouncedSearchTerm, filtroTipo, filtroStatus, filtroEspecie, categorias]);
+    setCurrentPage(1);
+  }, [
+    registrosPorPagina,
+    debouncedSearchTerm,
+    filtroTipo,
+    filtroStatus,
+    filtroEspecie,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, filteredCategorias]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -150,6 +285,20 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof Categoria) => {
     if (sortColumn === column) {
@@ -169,7 +318,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const handleSearch = () => applyFilters();
+  const handleSearch = () => setCurrentPage(1);
 
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -177,7 +326,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     setFiltroTipo('Todos');
     setFiltroStatus('Todos');
     setFiltroEspecie('Todas');
-    setFilteredCategorias(categorias);
+    setCurrentPage(1);
   };
 
   const handleAdd = () => {
@@ -225,10 +374,8 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
         throw new Error(result?.error || 'Erro ao excluir categoria.');
       }
 
-      const updatedCategorias = categorias.filter(c => c.id !== categoria.id);
-      setCategorias(updatedCategorias);
-      applyFilters(updatedCategorias);
       toast.success('Categoria excluída com sucesso!');
+      await fetchCategorias();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir categoria.');
     }
@@ -275,23 +422,28 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const totalAtivas = filteredCategorias.filter(c => c.status === 'Ativo').length;
-  const totalReceitas = filteredCategorias.filter(c => c.tipo === 'Receita').length;
-  const totalDespesas = filteredCategorias.filter(c => c.tipo === 'Despesa').length;
-
-  // Aplicar ordenação
-  const sortedCategorias = [...filteredCategorias].sort((a, b) => {
-    if (!sortColumn) return 0;
-    
-    const aValue = a[sortColumn];
-    const bValue = b[sortColumn];
-    
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const especies = Array.from(new Set(categorias.map(c => c.especie)));
+  const totalAtivas = summary.ativas;
+  const totalReceitas = summary.receitas;
+  const totalDespesas = summary.despesas;
+  const sortedCategorias = filteredCategorias;
+  const especies = speciesOptions;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
+  );
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -303,7 +455,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
           </CardHeader>
           <CardContent>
             <div className="text-blue-600">
-              {filteredCategorias.length}
+              {summary.total}
             </div>
             <p className="text-gray-500">{totalAtivas} ativas</p>
           </CardContent>
@@ -458,7 +610,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
         <CardHeader>
           <CardTitle>Lista de Categorias</CardTitle>
           <p className="text-gray-500">
-            {filteredCategorias.length} categoria(s) encontrada(s)
+            {pagination.total} categoria(s) encontrada(s)
           </p>
         </CardHeader>
         <CardContent>
@@ -500,7 +652,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && (
+                {isLoading && sortedCategorias.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-gray-500 py-8">
                       Carregando categorias...
@@ -514,7 +666,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && sortedCategorias.map((categoria) => (
+                {(!isLoading || sortedCategorias.length > 0) && sortedCategorias.map((categoria) => (
                   <TableRow key={categoria.idCategoria}>
                     <TableCell className="font-mono">{categoria.idCategoria}</TableCell>
                     <TableCell>{categoria.descricao}</TableCell>
@@ -561,6 +713,123 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedCategorias.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
+              )}
+            </div>
+
+            {isLoading && sortedCategorias.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              )}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((page) => (
+                <Button
+                  key={page}
+                  variant={pagination.page === page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(page)}
+                  disabled={isLoading}
+                >
+                  {page}
+                </Button>
+              ))}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

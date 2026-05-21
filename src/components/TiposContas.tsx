@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search, Filter, Eye, Pencil, Trash2, FolderTree, Settings, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Search, Filter, Eye, Pencil, Trash2, FolderTree, Settings, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -47,6 +47,52 @@ type TipoConta = {
   idCategoria: string;
   status: 'Ativo' | 'Inativo';
 };
+
+type TiposContasPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type TiposContasSummary = {
+  total: number;
+  ativos: number;
+  receitas: number;
+  despesas: number;
+};
+
+type TiposContasPaginatedResponse = {
+  items: ApiTipoConta[];
+  pagination: TiposContasPagination;
+  summary: TiposContasSummary;
+};
+
+const DEFAULT_PAGINATION: TiposContasPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: TiposContasSummary = {
+  total: 0,
+  ativos: 0,
+  receitas: 0,
+  despesas: 0,
+};
+
+const calculateTiposSummary = (items: TipoConta[]): TiposContasSummary =>
+  items.reduce(
+    (acc, tipo) => {
+      acc.total += 1;
+      if (tipo.status === 'Ativo') acc.ativos += 1;
+      if (tipo.tipo === 'Receita') acc.receitas += 1;
+      if (tipo.tipo === 'Despesa') acc.despesas += 1;
+      return acc;
+    },
+    { total: 0, ativos: 0, receitas: 0, despesas: 0 },
+  );
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 
@@ -104,6 +150,12 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<TiposContasPagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<TiposContasSummary>(DEFAULT_SUMMARY);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState({
     idTipo: '',
@@ -134,14 +186,29 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     }
 
     if (filtroCategoria !== 'Todas') {
-      filtered = filtered.filter(tipo => tipo.categoria === filtroCategoria);
+      filtered = filtered.filter(tipo => tipo.idCategoria === filtroCategoria);
     }
 
     setFilteredTipos(filtered);
   };
 
   const fetchTiposContas = async () => {
-    const response = await fetch(`${getApiBaseUrl()}/api/account-types`, {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (filtroTipo !== 'Todos') params.set('type', filtroTipo);
+    if (filtroStatus !== 'Todos') params.set('status', filtroStatus);
+    if (filtroCategoria !== 'Todas') params.set('categoryId', filtroCategoria);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/account-types?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     const result = await response.json();
@@ -150,9 +217,48 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       throw new Error(result?.error || 'Erro ao carregar tipos de contas.');
     }
 
-    const mappedTipos = ((result.data || []) as ApiTipoConta[]).map(mapApiTipoToTipo);
+    const responseData = result.data as TiposContasPaginatedResponse | ApiTipoConta[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiTipoToTipo) : [];
+    const legacyFilteredItems = legacyItems.filter((tipo) => {
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        tipo.idTipo.toLowerCase().includes(debouncedSearchTerm) ||
+        tipo.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        tipo.especie.toLowerCase().includes(debouncedSearchTerm) ||
+        tipo.categoria.toLowerCase().includes(debouncedSearchTerm);
+      const matchesTipo = filtroTipo === 'Todos' || tipo.tipo === filtroTipo;
+      const matchesStatus = filtroStatus === 'Todos' || tipo.status === filtroStatus;
+      const matchesCategoria = filtroCategoria === 'Todas' || tipo.idCategoria === filtroCategoria;
+
+      return matchesSearch && matchesTipo && matchesStatus && matchesCategoria;
+    });
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+
+      const aValue = a[sortColumn];
+      const bValue = b[sortColumn];
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const mappedTipos = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiTipoToTipo);
+
     setTiposContas(mappedTipos);
-    applyFilters(mappedTipos);
+    setFilteredTipos(mappedTipos);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateTiposSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setIsLoading(false);
   };
 
   const fetchCategorias = async () => {
@@ -173,13 +279,10 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setIsLoading(true);
       try {
-        await Promise.all([fetchCategorias(), fetchTiposContas()]);
+        await fetchCategorias();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar dados de tipos de contas.');
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -187,8 +290,50 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [debouncedSearchTerm, filtroTipo, filtroStatus, filtroCategoria, tiposContas]);
+    fetchTiposContas().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar tipos de contas.');
+    });
+  }, [
+    currentPage,
+    registrosPorPagina,
+    debouncedSearchTerm,
+    filtroTipo,
+    filtroStatus,
+    filtroCategoria,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    registrosPorPagina,
+    debouncedSearchTerm,
+    filtroTipo,
+    filtroStatus,
+    filtroCategoria,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, filteredTipos]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -197,6 +342,20 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof TipoConta) => {
     if (sortColumn === column) {
@@ -216,7 +375,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       <ArrowDown className="w-4 h-4 ml-1 inline" />;
   };
 
-  const handleSearch = () => applyFilters();
+  const handleSearch = () => setCurrentPage(1);
 
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -224,7 +383,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     setFiltroTipo('Todos');
     setFiltroStatus('Todos');
     setFiltroCategoria('Todas');
-    setFilteredTipos(tiposContas);
+    setCurrentPage(1);
   };
 
   const handleAdd = () => {
@@ -274,10 +433,8 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
         throw new Error(result?.error || 'Erro ao excluir tipo de conta.');
       }
 
-      const updatedTipos = tiposContas.filter(t => t.id !== tipo.id);
-      setTiposContas(updatedTipos);
-      applyFilters(updatedTipos);
       toast.success('Tipo de conta excluído com sucesso!');
+      await fetchTiposContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de conta.');
     }
@@ -316,23 +473,6 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       }
 
       toast.success(isEditing ? 'Tipo de conta atualizado com sucesso!' : 'Tipo de conta cadastrado com sucesso!');
-      if (isEditing && editingTipo) {
-        const updatedTipos = tiposContas.map((tipo) =>
-          tipo.id === editingTipo.id
-            ? {
-                ...tipo,
-                descricao: formData.descricao.trim(),
-                tipo: formData.tipo as 'Receita' | 'Despesa',
-                especie: formData.especie.trim() || categoria?.especie || '',
-                categoria: categoria?.descricao || tipo.categoria,
-                idCategoria: formData.idCategoria,
-                status: nextStatus ? 'Ativo' : 'Inativo',
-              }
-            : tipo,
-        );
-        setTiposContas(updatedTipos);
-        applyFilters(updatedTipos);
-      }
       setDialogOpen(false);
       setEditingTipo(null);
       await fetchTiposContas();
@@ -343,21 +483,27 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     }
   };
 
-  const totalAtivos = filteredTipos.filter(t => t.status === 'Ativo').length;
-  const totalReceitas = filteredTipos.filter(t => t.tipo === 'Receita').length;
-  const totalDespesas = filteredTipos.filter(t => t.tipo === 'Despesa').length;
-
-  // Aplicar ordenação
-  const sortedTipos = [...filteredTipos].sort((a, b) => {
-    if (!sortColumn) return 0;
-    
-    const aValue = a[sortColumn];
-    const bValue = b[sortColumn];
-    
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const totalAtivos = summary.ativos;
+  const totalReceitas = summary.receitas;
+  const totalDespesas = summary.despesas;
+  const sortedTipos = filteredTipos;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
+  );
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -369,7 +515,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           </CardHeader>
           <CardContent>
             <div className="text-blue-600">
-              {filteredTipos.length}
+              {summary.total}
             </div>
             <p className="text-gray-500">{totalAtivos} ativos</p>
           </CardContent>
@@ -517,7 +663,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   <SelectContent>
                     <SelectItem value="Todas" className="cursor-pointer">Todas</SelectItem>
                     {categorias.map(cat => (
-                      <SelectItem key={cat.id} value={cat.descricao} className="cursor-pointer">
+                      <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
                         {cat.descricao}
                       </SelectItem>
                     ))}
@@ -534,7 +680,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
         <CardHeader>
           <CardTitle>Lista de Tipos de Contas</CardTitle>
           <p className="text-gray-500">
-            {filteredTipos.length} tipo(s) encontrado(s)
+            {pagination.total} tipo(s) encontrado(s)
           </p>
         </CardHeader>
         <CardContent>
@@ -582,7 +728,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && (
+                {isLoading && sortedTipos.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-gray-500 py-8">
                       Carregando tipos de contas...
@@ -596,7 +742,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && sortedTipos.map((tipo) => (
+                {(!isLoading || sortedTipos.length > 0) && sortedTipos.map((tipo) => (
                   <TableRow key={tipo.idTipo}>
                     <TableCell className="font-mono">{tipo.idTipo}</TableCell>
                     <TableCell>{tipo.descricao}</TableCell>
@@ -644,6 +790,123 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedTipos.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
+              )}
+            </div>
+
+            {isLoading && sortedTipos.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              )}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((page) => (
+                <Button
+                  key={page}
+                  variant={pagination.page === page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(page)}
+                  disabled={isLoading}
+                >
+                  {page}
+                </Button>
+              ))}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

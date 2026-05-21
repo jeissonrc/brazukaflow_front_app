@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, Trash2, Shield, User, Eye, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Search, Pencil, Trash2, Shield, User, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Switch } from './ui/switch';
-import { getAuthToken } from '../lib/auth';
+import { AUTH_USER_KEY, getAuthToken } from '../lib/auth';
 
 type Profile = {
   id: number;
@@ -43,6 +43,32 @@ type UsuarioForm = {
   ativo: boolean;
 };
 
+type AuthUser = {
+  id: number;
+  profileId: number | null;
+  profile?: Profile;
+};
+
+type UsuariosPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type UsuariosSummary = {
+  total: number;
+  ativos: number;
+  admins: number;
+  comuns: number;
+};
+
+type UsuariosPaginatedResponse = {
+  items: ApiUser[];
+  pagination: UsuariosPagination;
+  summary: UsuariosSummary;
+};
+
 const DEFAULT_FORM: UsuarioForm = {
   nome: '',
   login: '',
@@ -50,6 +76,32 @@ const DEFAULT_FORM: UsuarioForm = {
   perfil: 'comum',
   ativo: true,
 };
+
+const DEFAULT_PAGINATION: UsuariosPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: UsuariosSummary = {
+  total: 0,
+  ativos: 0,
+  admins: 0,
+  comuns: 0,
+};
+
+const calculateUsuariosSummary = (items: Usuario[]): UsuariosSummary =>
+  items.reduce(
+    (acc, usuario) => {
+      acc.total += 1;
+      if (usuario.status === 'ativo') acc.ativos += 1;
+      if (usuario.perfil === 'admin') acc.admins += 1;
+      if (usuario.perfil === 'comum') acc.comuns += 1;
+      return acc;
+    },
+    { total: 0, ativos: 0, admins: 0, comuns: 0 },
+  );
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 
@@ -83,6 +135,12 @@ export default function Usuarios() {
   const [isSaving, setIsSaving] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof Usuario | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<UsuariosPagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<UsuariosSummary>(DEFAULT_SUMMARY);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
 
   const adminProfileId = useMemo(() => {
     return profiles.find((profile) => profile.name.toLowerCase().includes('admin'))?.id ?? null;
@@ -91,6 +149,29 @@ export default function Usuarios() {
   const commonProfileId = useMemo(() => {
     return profiles.find((profile) => !profile.name.toLowerCase().includes('admin'))?.id ?? null;
   }, [profiles]);
+
+  const authUser = useMemo(() => {
+    const userRaw = localStorage.getItem(AUTH_USER_KEY);
+    if (!userRaw) return null;
+
+    try {
+      return JSON.parse(userRaw) as AuthUser;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const authUserRole = useMemo(() => {
+    if (authUser?.profile?.name) {
+      return profileToRole(authUser.profile.name);
+    }
+
+    if (authUser?.profileId && authUser.profileId === adminProfileId) {
+      return 'admin';
+    }
+
+    return 'comum';
+  }, [adminProfileId, authUser]);
 
   const getProfileIdByRole = (role: 'admin' | 'comum') => {
     if (role === 'admin') {
@@ -112,7 +193,19 @@ export default function Usuarios() {
   };
 
   const fetchUsers = async () => {
-    const response = await fetch(`${getApiBaseUrl()}/api/users`, {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/users?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     const result = await response.json();
@@ -121,8 +214,37 @@ export default function Usuarios() {
       throw new Error(result?.error || 'Erro ao carregar usuários.');
     }
 
-    const apiUsers = (result.data || []) as ApiUser[];
-    setUsuarios(apiUsers.map(mapApiUserToUsuario));
+    const responseData = result.data as UsuariosPaginatedResponse | ApiUser[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiUserToUsuario) : [];
+    const legacyFilteredItems = legacyItems.filter(
+      (usuario) =>
+        !debouncedSearchTerm ||
+        usuario.nome.toLowerCase().includes(debouncedSearchTerm) ||
+        usuario.login.toLowerCase().includes(debouncedSearchTerm) ||
+        usuario.perfil.toLowerCase().includes(debouncedSearchTerm),
+    );
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+      const aValue = String(a[sortColumn]);
+      const bValue = String(b[sortColumn]);
+      return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const mappedUsers = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiUserToUsuario);
+
+    setUsuarios(mappedUsers);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateUsuariosSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setIsLoading(false);
   };
 
   const fetchProfiles = async () => {
@@ -140,18 +262,44 @@ export default function Usuarios() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setIsLoading(true);
       try {
-        await Promise.all([fetchProfiles(), fetchUsers()]);
+        await fetchProfiles();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar dados de usuários.');
-      } finally {
-        setIsLoading(false);
       }
     };
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    fetchUsers().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar usuários.');
+    });
+  }, [currentPage, registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, usuarios]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -160,6 +308,20 @@ export default function Usuarios() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof Usuario) => {
     if (sortColumn === column) {
@@ -180,7 +342,7 @@ export default function Usuarios() {
   const getPerfilBadge = (perfil: string) => {
     if (perfil === 'admin') {
       return (
-        <Badge className="bg-purple-100 text-purple-700">
+        <Badge className="bg-yellow-100 text-yellow-700">
           <Shield className="w-3 h-3 mr-1" />
           Admin
         </Badge>
@@ -229,6 +391,23 @@ export default function Usuarios() {
   };
 
   const handleDelete = async (id: number) => {
+    const usuario = usuarios.find((item) => item.id === id);
+
+    if (authUserRole !== 'admin') {
+      toast.error('Apenas usuários administradores podem remover usuários.');
+      return;
+    }
+
+    if (usuario?.perfil === 'admin' && Number(authUser?.id) === Number(usuario.id)) {
+      toast.error('Usuário administrador não pode remover a si mesmo.');
+      return;
+    }
+
+    if (usuario?.perfil === 'admin' && summary.admins <= 1) {
+      toast.error('Não é possível remover o único usuário administrador ativo.');
+      return;
+    }
+
     if (!confirm('Tem certeza que deseja excluir este usuário?')) {
       return;
     }
@@ -244,8 +423,8 @@ export default function Usuarios() {
         throw new Error(result?.error || 'Erro ao excluir usuário.');
       }
 
-      setUsuarios((prev) => prev.filter((user) => user.id !== id));
       toast.success('Usuário excluído com sucesso.');
+      await fetchUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir usuário.');
     }
@@ -265,6 +444,11 @@ export default function Usuarios() {
   const saveUsuario = async () => {
     if (!formData.nome.trim() || !formData.login.trim() || (!editingUsuario && !formData.senha)) {
       toast.error('Preencha os campos obrigatórios.');
+      return;
+    }
+
+    if (editingUsuario?.perfil === 'admin' && Number(authUser?.id) === Number(editingUsuario.id) && !formData.ativo) {
+      toast.error('Usuário administrador não pode inativar a si mesmo.');
       return;
     }
 
@@ -313,52 +497,24 @@ export default function Usuarios() {
     }
   };
 
-  const toggleStatus = async (usuario: Usuario) => {
-    const nextActive = usuario.status === 'ativo' ? 0 : 1;
-
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/users/${usuario.id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          active: nextActive,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Erro ao atualizar status do usuário.');
-      }
-
-      setUsuarios((prev) =>
-        prev.map((item) =>
-          item.id === usuario.id
-            ? {
-                ...item,
-                status: nextActive ? 'ativo' : 'inativo',
-              }
-            : item,
-        ),
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao alterar status.');
-    }
-  };
-
-  const filteredUsuarios = usuarios.filter(
-    (usuario) =>
-      !debouncedSearchTerm ||
-      usuario.nome.toLowerCase().includes(debouncedSearchTerm) ||
-      usuario.login.toLowerCase().includes(debouncedSearchTerm),
+  const sortedUsuarios = usuarios;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
   );
-
-  const sortedUsuarios = [...filteredUsuarios].sort((a, b) => {
-    if (!sortColumn) {
-      return 0;
-    }
-
-    return sortDirection === 'asc' ? a[sortColumn].localeCompare(b[sortColumn]) : b[sortColumn].localeCompare(a[sortColumn]);
-  });
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -368,7 +524,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Total de Usuários</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-gray-900">{usuarios.length}</div>
+            <div className="text-gray-900">{summary.total}</div>
             <p className="text-gray-500">usuários cadastrados</p>
           </CardContent>
         </Card>
@@ -378,7 +534,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Usuários Ativos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">{usuarios.filter((u) => u.status === 'ativo').length}</div>
+            <div className="text-green-600">{summary.ativos}</div>
             <p className="text-gray-500">ativos no sistema</p>
           </CardContent>
         </Card>
@@ -388,7 +544,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Administradores</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-purple-600">{usuarios.filter((u) => u.perfil === 'admin').length}</div>
+            <div className="text-purple-600">{summary.admins}</div>
             <p className="text-gray-500">com acesso total</p>
           </CardContent>
         </Card>
@@ -398,7 +554,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Comuns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">{usuarios.filter((u) => u.perfil === 'comum').length}</div>
+            <div className="text-blue-600">{summary.comuns}</div>
             <p className="text-gray-500">usuários comuns</p>
           </CardContent>
         </Card>
@@ -459,9 +615,16 @@ export default function Usuarios() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="ativo">Usuário Ativo</Label>
-                    <Switch id="ativo" className="cursor-pointer" checked={formData.ativo} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))} />
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="ativo"
+                      className="cursor-pointer"
+                      checked={formData.ativo}
+                      onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
+                    />
+                    <Label htmlFor="ativo" className={formData.ativo ? 'text-green-700' : 'text-gray-600'}>
+                      {formData.ativo ? 'Ativo' : 'Inativo'}
+                    </Label>
                   </div>
                 </div>
                 <DialogFooter>
@@ -479,71 +642,200 @@ export default function Usuarios() {
       </Card>
 
       <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('nome')}>
-                  Usuário {getSortIcon('nome')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('login')}>
-                  Login {getSortIcon('login')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('perfil')}>
-                  Perfil {getSortIcon('perfil')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
-                  Status {getSortIcon('status')}
-                </TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5}>Carregando usuários...</TableCell>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('nome')}>
+                    Usuário {getSortIcon('nome')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('login')}>
+                    Login {getSortIcon('login')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('perfil')}>
+                    Perfil {getSortIcon('perfil')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
+                    Status {getSortIcon('status')}
+                  </TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              ) : sortedUsuarios.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5}>Nenhum usuário encontrado.</TableCell>
-                </TableRow>
-              ) : (
-                sortedUsuarios.map((usuario) => (
-                  <TableRow key={usuario.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback className="bg-green-100 text-green-600">{getInitials(usuario.nome)}</AvatarFallback>
-                        </Avatar>
-                        <span>{usuario.nome}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{usuario.login}</TableCell>
-                    <TableCell>{getPerfilBadge(usuario.perfil)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(usuario.status)}
-                        <Switch className="cursor-pointer" checked={usuario.status === 'ativo'} onCheckedChange={() => toggleStatus(usuario)} />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(usuario)} title="Visualizar">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(usuario)} title="Editar">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(usuario.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {isLoading && sortedUsuarios.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                      Carregando usuários...
                     </TableCell>
                   </TableRow>
-                ))
+                )}
+                {!isLoading && sortedUsuarios.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                      Nenhum usuário encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {(!isLoading || sortedUsuarios.length > 0) &&
+                  sortedUsuarios.map((usuario) => (
+                    <TableRow key={usuario.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarFallback className="bg-green-100 text-green-600">{getInitials(usuario.nome)}</AvatarFallback>
+                          </Avatar>
+                          <span>{usuario.nome}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{usuario.login}</TableCell>
+                      <TableCell>{getPerfilBadge(usuario.perfil)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(usuario.status)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(usuario)} title="Visualizar">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(usuario)} title="Editar">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(usuario.id)}
+                            className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedUsuarios.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
               )}
-            </TableBody>
-          </Table>
+            </div>
+
+            {isLoading && sortedUsuarios.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              )}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((pagina) => (
+                <Button
+                  key={pagina}
+                  variant={pagina === pagination.page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagina)}
+                  disabled={isLoading}
+                >
+                  {pagina}
+                </Button>
+              ))}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search, Filter, Download, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -61,12 +61,66 @@ type DespesaForm = {
   dataDespesa: string;
 };
 
+type DespesasPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type DespesasSummary = {
+  total: number;
+  quantidade: number;
+  ticketMedio: number;
+  mesAtual: number;
+};
+
+type DespesasPaginatedResponse = {
+  items: ApiExpense[];
+  pagination: DespesasPagination;
+  summary: DespesasSummary;
+};
+
 const DEFAULT_FORM: DespesaForm = {
   descricao: '',
   accountTypeId: '',
   cashAccountId: '',
   valor: '',
   dataDespesa: '',
+};
+
+const DEFAULT_PAGINATION: DespesasPagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: DespesasSummary = {
+  total: 0,
+  quantidade: 0,
+  ticketMedio: 0,
+  mesAtual: 0,
+};
+
+const calculateDespesasSummary = (items: Despesa[]): DespesasSummary => {
+  const currentMonth = new Date().getMonth() + 1;
+  const summary = items.reduce(
+    (acc, despesa) => {
+      const [, month] = despesa.dataDespesa.split('-');
+
+      acc.total += despesa.valor;
+      acc.quantidade += 1;
+      if (Number(month) === currentMonth) {
+        acc.mesAtual += despesa.valor;
+      }
+      return acc;
+    },
+    { total: 0, quantidade: 0, ticketMedio: 0, mesAtual: 0 },
+  );
+
+  summary.ticketMedio = summary.quantidade ? summary.total / summary.quantidade : 0;
+  return summary;
 };
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
@@ -155,9 +209,31 @@ export default function Despesas() {
   const [isSaving, setIsSaving] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof Despesa | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<DespesasPagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<DespesasSummary>(DEFAULT_SUMMARY);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
 
   const fetchDespesas = async () => {
-    const response = await fetch(`${getApiBaseUrl()}/api/expenses`, {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (accountTypeFiltro !== 'todos') params.set('accountTypeId', accountTypeFiltro);
+    if (cashAccountFiltro !== 'todas') params.set('cashAccountId', cashAccountFiltro);
+    if (dataInicioFiltro) params.set('dateFrom', dataInicioFiltro);
+    if (dataFimFiltro) params.set('dateTo', dataFimFiltro);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/expenses?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     const result = await response.json();
@@ -166,8 +242,46 @@ export default function Despesas() {
       throw new Error(result?.error || 'Erro ao carregar despesas.');
     }
 
-    const items = ((result.data || []) as ApiExpense[]).map(mapApiExpenseToDespesa);
+    const responseData = result.data as DespesasPaginatedResponse | ApiExpense[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiExpenseToDespesa) : [];
+    const legacyFilteredItems = legacyItems.filter((despesa) => {
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        despesa.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        despesa.tipoConta.toLowerCase().includes(debouncedSearchTerm) ||
+        despesa.categoria.toLowerCase().includes(debouncedSearchTerm) ||
+        despesa.contaCaixa.toLowerCase().includes(debouncedSearchTerm);
+      const matchesAccountType = accountTypeFiltro === 'todos' || String(despesa.accountTypeId) === accountTypeFiltro;
+      const matchesCashAccount = cashAccountFiltro === 'todas' || String(despesa.cashAccountId) === cashAccountFiltro;
+      const matchesStartDate = !dataInicioFiltro || (despesa.dataDespesa && despesa.dataDespesa >= dataInicioFiltro);
+      const matchesEndDate = !dataFimFiltro || (despesa.dataDespesa && despesa.dataDespesa <= dataFimFiltro);
+
+      return matchesSearch && matchesAccountType && matchesCashAccount && matchesStartDate && matchesEndDate;
+    });
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+      const aValue = a[sortColumn];
+      const bValue = b[sortColumn];
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const items = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiExpenseToDespesa);
+
     setDespesas(items);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateDespesasSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setIsLoading(false);
   };
 
   const fetchAccountTypes = async () => {
@@ -202,18 +316,63 @@ export default function Despesas() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setIsLoading(true);
       try {
-        await Promise.all([fetchDespesas(), fetchAccountTypes(), fetchCashAccounts()]);
+        await Promise.all([fetchAccountTypes(), fetchCashAccounts()]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar módulo de despesas.');
-      } finally {
-        setIsLoading(false);
       }
     };
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    fetchDespesas().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar despesas.');
+    });
+  }, [
+    currentPage,
+    registrosPorPagina,
+    debouncedSearchTerm,
+    accountTypeFiltro,
+    cashAccountFiltro,
+    dataInicioFiltro,
+    dataFimFiltro,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    registrosPorPagina,
+    debouncedSearchTerm,
+    accountTypeFiltro,
+    cashAccountFiltro,
+    dataInicioFiltro,
+    dataFimFiltro,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, despesas]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -222,6 +381,20 @@ export default function Despesas() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof Despesa) => {
     if (sortColumn === column) {
@@ -271,8 +444,8 @@ export default function Despesas() {
       if (!response.ok || !result?.success) {
         throw new Error(result?.error || 'Erro ao excluir despesa.');
       }
-      setDespesas((prev) => prev.filter((item) => item.id !== id));
       toast.success('Despesa excluída com sucesso.');
+      await fetchDespesas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir despesa.');
     }
@@ -351,39 +524,27 @@ export default function Despesas() {
 
   const hasAdvancedFilters = accountTypeFiltro !== 'todos' || cashAccountFiltro !== 'todas' || Boolean(dataInicioFiltro) || Boolean(dataFimFiltro);
 
-  const filteredDespesas = despesas.filter((despesa) => {
-    const matchesSearch =
-      !debouncedSearchTerm ||
-      despesa.descricao.toLowerCase().includes(debouncedSearchTerm) ||
-      despesa.tipoConta.toLowerCase().includes(debouncedSearchTerm) ||
-      despesa.categoria.toLowerCase().includes(debouncedSearchTerm) ||
-      despesa.contaCaixa.toLowerCase().includes(debouncedSearchTerm);
-
-    const matchesAccountType = accountTypeFiltro === 'todos' || String(despesa.accountTypeId) === accountTypeFiltro;
-    const matchesCashAccount = cashAccountFiltro === 'todas' || String(despesa.cashAccountId) === cashAccountFiltro;
-    const matchesStartDate = !dataInicioFiltro || (despesa.dataDespesa && despesa.dataDespesa >= dataInicioFiltro);
-    const matchesEndDate = !dataFimFiltro || (despesa.dataDespesa && despesa.dataDespesa <= dataFimFiltro);
-
-    return matchesSearch && matchesAccountType && matchesCashAccount && matchesStartDate && matchesEndDate;
-  });
-
-  const sortedDespesas = [...filteredDespesas].sort((a, b) => {
-    if (!sortColumn) return 0;
-    const aValue = a[sortColumn];
-    const bValue = b[sortColumn];
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const totalDespesas = despesas.reduce((acc, d) => acc + d.valor, 0);
-  const ticketMedio = despesas.length ? totalDespesas / despesas.length : 0;
-  const despesasMes = despesas
-    .filter((d) => {
-      const [, month] = d.dataDespesa.split('-');
-      return Number(month) === new Date().getMonth() + 1;
-    })
-    .reduce((acc, d) => acc + d.valor, 0);
+  const sortedDespesas = despesas;
+  const totalDespesas = summary.total;
+  const ticketMedio = summary.ticketMedio;
+  const despesasMes = summary.mesAtual;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
+  );
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -394,7 +555,7 @@ export default function Despesas() {
           </CardHeader>
           <CardContent>
             <div className="text-red-600">{totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{despesas.length} lançamentos</p>
+            <p className="text-gray-500">{summary.quantidade} lançamentos</p>
           </CardContent>
         </Card>
 
@@ -439,10 +600,6 @@ export default function Despesas() {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="sm:w-auto disabled:cursor-not-allowed" disabled>
-                <Download className="w-4 h-4 mr-2" />
-                Exportar
-              </Button>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
@@ -583,72 +740,191 @@ export default function Despesas() {
       </Card>
 
       <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
-                  Código {getSortIcon('id')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
-                  Descrição {getSortIcon('descricao')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('tipoConta')}>
-                  Tipo Conta {getSortIcon('tipoConta')}
-                </TableHead>
-                <TableHead>Conta Caixa</TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
-                  Valor {getSortIcon('valor')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataDespesa')}>
-                  Data {getSortIcon('dataDespesa')}
-                </TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                    Carregando despesas...
-                  </TableCell>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
+                    Código {getSortIcon('id')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
+                    Descrição {getSortIcon('descricao')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('tipoConta')}>
+                    Tipo Conta {getSortIcon('tipoConta')}
+                  </TableHead>
+                  <TableHead>Conta Caixa</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
+                    Valor {getSortIcon('valor')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataDespesa')}>
+                    Data {getSortIcon('dataDespesa')}
+                  </TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              )}
-              {!isLoading && sortedDespesas.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                    Nenhuma despesa encontrada.
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading &&
-                sortedDespesas.map((despesa) => (
-                  <TableRow key={despesa.id}>
-                    <TableCell>{despesa.id}</TableCell>
-                    <TableCell>{despesa.descricao || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{despesa.tipoConta}</Badge>
-                    </TableCell>
-                    <TableCell>{despesa.contaCaixa}</TableCell>
-                    <TableCell className="text-red-600">{despesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                    <TableCell>{despesa.dataDespesa ? formatDateBR(despesa.dataDespesa) : '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(despesa)} title="Visualizar">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(despesa)} title="Editar">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {isLoading && sortedDespesas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Carregando despesas...
                     </TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                )}
+                {!isLoading && sortedDespesas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Nenhuma despesa encontrada.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {(!isLoading || sortedDespesas.length > 0) &&
+                  sortedDespesas.map((despesa) => (
+                    <TableRow key={despesa.id}>
+                      <TableCell>{despesa.id}</TableCell>
+                      <TableCell>{despesa.descricao || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{despesa.tipoConta}</Badge>
+                      </TableCell>
+                      <TableCell>{despesa.contaCaixa}</TableCell>
+                      <TableCell className="text-red-600">{despesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                      <TableCell>{despesa.dataDespesa ? formatDateBR(despesa.dataDespesa) : '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(despesa)} title="Visualizar">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(despesa)} title="Editar">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedDespesas.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
+              )}
+            </div>
+
+            {isLoading && sortedDespesas.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              )}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((page) => (
+                <Button
+                  key={page}
+                  variant={pagination.page === page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(page)}
+                  disabled={isLoading}
+                >
+                  {page}
+                </Button>
+              ))}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

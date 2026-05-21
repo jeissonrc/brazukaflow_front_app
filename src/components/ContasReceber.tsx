@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Plus, Search, Filter, Download, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X } from 'lucide-react';
+import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -96,6 +96,26 @@ type MassForm = {
   observacoes: string;
 };
 
+type AccountsReceivablePagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+type AccountsReceivableSummary = {
+  total: number;
+  pendente: { valor: number; quantidade: number };
+  recebido: { valor: number; quantidade: number };
+  vencido: { valor: number; quantidade: number };
+};
+
+type AccountsReceivablePaginatedResponse = {
+  items: ApiAccountsReceivable[];
+  pagination: AccountsReceivablePagination;
+  summary: AccountsReceivableSummary;
+};
+
 const DEFAULT_FORM: ContaReceberForm = {
   descricao: '',
   accountTypeId: '',
@@ -118,6 +138,36 @@ const DEFAULT_MASS_FORM: MassForm = {
   dataInicio: '',
   observacoes: '',
 };
+
+const DEFAULT_PAGINATION: AccountsReceivablePagination = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
+
+const DEFAULT_SUMMARY: AccountsReceivableSummary = {
+  total: 0,
+  pendente: { valor: 0, quantidade: 0 },
+  recebido: { valor: 0, quantidade: 0 },
+  vencido: { valor: 0, quantidade: 0 },
+};
+
+const calculateAccountsSummary = (items: ContaReceber[]): AccountsReceivableSummary =>
+  items.reduce(
+    (acc, conta) => {
+      acc.total += conta.valor;
+      acc[conta.status].valor += conta.valor;
+      acc[conta.status].quantidade += 1;
+      return acc;
+    },
+    {
+      total: 0,
+      pendente: { valor: 0, quantidade: 0 },
+      recebido: { valor: 0, quantidade: 0 },
+      vencido: { valor: 0, quantidade: 0 },
+    },
+  );
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const isActiveStatus = (status: boolean | number | string | null | undefined) => status !== false && status !== 0 && status !== '0' && status !== 'false';
@@ -254,10 +304,16 @@ export default function ContasReceber() {
   const [contaToReceber, setContaToReceber] = useState<ContaReceber | null>(null);
   const [sortColumn, setSortColumn] = useState<keyof ContaReceber | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [pagination, setPagination] = useState<AccountsReceivablePagination>(DEFAULT_PAGINATION);
+  const [summary, setSummary] = useState<AccountsReceivableSummary>(DEFAULT_SUMMARY);
   const accountTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const paymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massAccountTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massPaymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const scrollToPaginationBottomRef = useRef(false);
+  const paginationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     accountTypeRequiredRef.current?.setCustomValidity('');
@@ -284,8 +340,26 @@ export default function ContasReceber() {
   }, [searchTerm]);
 
   const fetchContas = async () => {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(registrosPorPagina),
+    });
+
+    if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+    if (statusFiltro !== 'todos') params.set('status', statusFiltro);
+    if (paymentTypeFiltro !== 'todos') params.set('paymentTypeId', paymentTypeFiltro);
+    if (accountTypeFiltro !== 'todos') params.set('accountTypeId', accountTypeFiltro);
+    if (originFiltro !== 'todas') params.set('originId', originFiltro);
+    if (dataInicioFiltro) params.set('dateFrom', dataInicioFiltro);
+    if (dataFimFiltro) params.set('dateTo', dataFimFiltro);
+    if (sortColumn) {
+      params.set('sortBy', String(sortColumn));
+      params.set('sortDirection', sortDirection);
+    }
+
     const [response, originsResponse] = await Promise.all([
-      fetch(`${getApiBaseUrl()}/api/accounts-receivable`, {
+      fetch(`${getApiBaseUrl()}/api/accounts-receivable?${params.toString()}`, {
         headers: getAuthHeaders(),
       }),
       fetch(`${getApiBaseUrl()}/api/origin-accounts`, {
@@ -306,9 +380,54 @@ export default function ContasReceber() {
 
     const originsData = (originsResult.data || []) as ApiOriginAccount[];
     const originsById = new Map(originsData.map((origin) => [origin.id, origin]));
-    const items = ((result.data || []) as ApiAccountsReceivable[]).map((conta) => mapApiContaToConta(conta, originsById));
+    const responseData = result.data as AccountsReceivablePaginatedResponse | ApiAccountsReceivable[];
+    const isLegacyArrayResponse = Array.isArray(responseData);
+    const legacyItems = isLegacyArrayResponse
+      ? responseData.map((conta) => mapApiContaToConta(conta, originsById))
+      : [];
+    const legacyFilteredItems = legacyItems.filter((conta) => {
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        conta.descricao.toLowerCase().includes(debouncedSearchTerm) ||
+        conta.numeroDoc.toLowerCase().includes(debouncedSearchTerm) ||
+        conta.tipoConta.toLowerCase().includes(debouncedSearchTerm) ||
+        conta.formaPgto.toLowerCase().includes(debouncedSearchTerm) ||
+        conta.origemConta.toLowerCase().includes(debouncedSearchTerm);
+      const matchesStatus = statusFiltro === 'todos' || conta.status === statusFiltro;
+      const matchesPaymentType = paymentTypeFiltro === 'todos' || String(conta.paymentTypeId) === paymentTypeFiltro;
+      const matchesAccountType = accountTypeFiltro === 'todos' || String(conta.accountTypeId) === accountTypeFiltro;
+      const matchesOrigin = originFiltro === 'todas' || String(conta.originId) === originFiltro;
+      const matchesStartDate = !dataInicioFiltro || (conta.dataVencimento && conta.dataVencimento >= dataInicioFiltro);
+      const matchesEndDate = !dataFimFiltro || (conta.dataVencimento && conta.dataVencimento <= dataFimFiltro);
+
+      return matchesSearch && matchesStatus && matchesPaymentType && matchesAccountType && matchesOrigin && matchesStartDate && matchesEndDate;
+    });
+    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+      if (!sortColumn) return 0;
+
+      const aValue = a[sortColumn];
+      const bValue = b[sortColumn];
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
+    const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
+    const legacyPagination = {
+      page: currentPage,
+      limit: registrosPorPagina,
+      total: legacyFilteredItems.length,
+      totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
+    };
+    const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
+    const items = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map((conta) => mapApiContaToConta(conta, originsById));
+
     setContas(items);
     setOrigins(originsData);
+    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
+    setSummary(isLegacyArrayResponse ? calculateAccountsSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setIsLoading(false);
   };
 
   const fetchAccountTypes = async () => {
@@ -343,18 +462,81 @@ export default function ContasReceber() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setIsLoading(true);
       try {
-        await Promise.all([fetchContas(), fetchAccountTypes(), fetchPaymentTypes()]);
+        await Promise.all([fetchAccountTypes(), fetchPaymentTypes()]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar módulo de contas a receber.');
-      } finally {
-        setIsLoading(false);
       }
     };
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    fetchContas().catch((error) => {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar contas a receber.');
+    });
+  }, [
+    currentPage,
+    registrosPorPagina,
+    debouncedSearchTerm,
+    statusFiltro,
+    paymentTypeFiltro,
+    accountTypeFiltro,
+    originFiltro,
+    dataInicioFiltro,
+    dataFimFiltro,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    registrosPorPagina,
+    debouncedSearchTerm,
+    statusFiltro,
+    paymentTypeFiltro,
+    accountTypeFiltro,
+    originFiltro,
+    dataInicioFiltro,
+    dataFimFiltro,
+    sortColumn,
+    sortDirection,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination.totalPages]);
+
+  useEffect(() => {
+    if (!isLoading && scrollToPaginationBottomRef.current) {
+      scrollToPaginationBottomRef.current = false;
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          paginationRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+          paginationRef.current?.closest('main')?.scrollBy({ top: 80, behavior: 'auto' });
+        });
+      });
+    }
+  }, [isLoading, contas]);
+
+  const scrollToPaginationBottomAfterLoad = () => {
+    scrollToPaginationBottomRef.current = true;
+  };
+
+  const handleRegistrosPorPaginaChange = (value: string) => {
+    scrollToPaginationBottomAfterLoad();
+    setRegistrosPorPagina(Number(value));
+  };
+
+  const handlePageChange = (page: number) => {
+    scrollToPaginationBottomAfterLoad();
+    setCurrentPage(page);
+  };
 
   const handleSort = (column: keyof ContaReceber) => {
     if (sortColumn === column) {
@@ -422,8 +604,8 @@ export default function ContasReceber() {
         throw new Error(result?.error || 'Erro ao excluir conta a receber.');
       }
 
-      setContas((prev) => prev.filter((item) => item.id !== id));
       toast.success('Conta a receber excluída com sucesso.');
+      await fetchContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir conta a receber.');
     }
@@ -677,42 +859,28 @@ export default function ContasReceber() {
     Boolean(dataInicioFiltro) ||
     Boolean(dataFimFiltro);
 
-  const originIdsWithAccounts = new Set(contas.map((conta) => conta.originId).filter((id): id is number => Boolean(id)));
-  const originsWithAccounts = origins.filter((origin) => originIdsWithAccounts.has(origin.id));
-
-  const filteredContas = contas.filter((conta) => {
-    const matchesSearch =
-      !debouncedSearchTerm ||
-      conta.descricao.toLowerCase().includes(debouncedSearchTerm) ||
-      conta.numeroDoc.toLowerCase().includes(debouncedSearchTerm) ||
-      conta.tipoConta.toLowerCase().includes(debouncedSearchTerm) ||
-      conta.formaPgto.toLowerCase().includes(debouncedSearchTerm) ||
-      conta.origemConta.toLowerCase().includes(debouncedSearchTerm);
-
-    const matchesStatus = statusFiltro === 'todos' || conta.status === statusFiltro;
-    const matchesPaymentType = paymentTypeFiltro === 'todos' || String(conta.paymentTypeId) === paymentTypeFiltro;
-    const matchesAccountType = accountTypeFiltro === 'todos' || String(conta.accountTypeId) === accountTypeFiltro;
-    const matchesOrigin = originFiltro === 'todas' || String(conta.originId) === originFiltro;
-    const matchesStartDate = !dataInicioFiltro || (conta.dataVencimento && conta.dataVencimento >= dataInicioFiltro);
-    const matchesEndDate = !dataFimFiltro || (conta.dataVencimento && conta.dataVencimento <= dataFimFiltro);
-
-    return matchesSearch && matchesStatus && matchesPaymentType && matchesAccountType && matchesOrigin && matchesStartDate && matchesEndDate;
-  });
-
-  const sortedContas = [...filteredContas].sort((a, b) => {
-    if (!sortColumn) return 0;
-
-    const aValue = a[sortColumn];
-    const bValue = b[sortColumn];
-
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const totalPendente = contas.filter((c) => c.status === 'pendente').reduce((acc, c) => acc + c.valor, 0);
-  const totalPago = contas.filter((c) => c.status === 'recebido').reduce((acc, c) => acc + c.valor, 0);
-  const totalVencido = contas.filter((c) => c.status === 'vencido').reduce((acc, c) => acc + c.valor, 0);
+  const originsWithAccounts = origins;
+  const sortedContas = contas;
+  const totalPendente = summary.pendente.valor;
+  const totalPago = summary.recebido.valor;
+  const totalVencido = summary.vencido.valor;
+  const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
+  const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
+  const visiblePageWindow = 5;
+  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
+  const middleStartPage = Math.max(
+    1,
+    Math.min(
+      pagination.page - halfVisiblePageWindow,
+      pagination.totalPages - visiblePageWindow + 1,
+    ),
+  );
+  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
+  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
+  const showFirstPageShortcut = middleStartPage > 1;
+  const showLeadingEllipsis = middleStartPage > 2;
+  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
+  const showLastPageShortcut = middleEndPage < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -723,7 +891,7 @@ export default function ContasReceber() {
           </CardHeader>
           <CardContent>
             <div className="text-yellow-600">{totalPendente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{contas.filter((c) => c.status === 'pendente').length} contas</p>
+            <p className="text-gray-500">{summary.pendente.quantidade} contas</p>
           </CardContent>
         </Card>
 
@@ -733,7 +901,7 @@ export default function ContasReceber() {
           </CardHeader>
           <CardContent>
             <div className="text-green-600">{totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{contas.filter((c) => c.status === 'recebido').length} contas</p>
+            <p className="text-gray-500">{summary.recebido.quantidade} contas</p>
           </CardContent>
         </Card>
 
@@ -743,7 +911,7 @@ export default function ContasReceber() {
           </CardHeader>
           <CardContent>
             <div className="text-red-600">{totalVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{contas.filter((c) => c.status === 'vencido').length} contas</p>
+            <p className="text-gray-500">{summary.vencido.quantidade} contas</p>
           </CardContent>
         </Card>
       </div>
@@ -773,10 +941,6 @@ export default function ContasReceber() {
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="sm:w-auto disabled:cursor-not-allowed" disabled>
-                <Download className="w-4 h-4 mr-2" />
-                Exportar
-              </Button>
               <Dialog open={massDialogOpen} onOpenChange={(open) => (open ? setMassDialogOpen(true) : handleCloseMassDialog())}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed border-blue-600 text-blue-600 hover:bg-blue-50">
@@ -1231,102 +1395,221 @@ export default function ContasReceber() {
       </Card>
 
       <Card>
-        <CardContent className="pt-6 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
-                  Código {getSortIcon('id')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
-                  Descrição {getSortIcon('descricao')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataVencimento')}>
-                  Data Vcto {getSortIcon('dataVencimento')}
-                </TableHead>
-                <TableHead>Forma Pgto</TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
-                  Valor {getSortIcon('valor')}
-                </TableHead>
-                <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
-                  Status {getSortIcon('status')}
-                </TableHead>
-                <TableHead className="text-center">Marcar Recebido</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
-                    Carregando contas a receber...
-                  </TableCell>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
+                    Código {getSortIcon('id')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
+                    Descrição {getSortIcon('descricao')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataVencimento')}>
+                    Data Vcto {getSortIcon('dataVencimento')}
+                  </TableHead>
+                  <TableHead>Forma Pgto</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
+                    Valor {getSortIcon('valor')}
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
+                    Status {getSortIcon('status')}
+                  </TableHead>
+                  <TableHead className="text-center">Marcar Recebido</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              )}
-              {!isLoading && sortedContas.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
-                    Nenhuma conta a receber encontrada.
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading &&
-                sortedContas.map((conta) => (
-                  <TableRow key={conta.id}>
-                    <TableCell>{conta.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{conta.descricao || '-'}</span>
-                        {conta.originId && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
-                            title="Ver origem da conta"
-                            onClick={() => handleViewOrigin(conta)}
-                          >
-                            <Info className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{conta.dataVencimento ? formatDateBR(conta.dataVencimento) : '-'}</TableCell>
-                    <TableCell>{conta.formaPgto}</TableCell>
-                    <TableCell>{conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                    <TableCell>{getStatusBadge(conta.status)}</TableCell>
-                    <TableCell className="text-center">
-                      {conta.status === 'pendente' || conta.status === 'vencido' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMarcarRecebido(conta)}
-                          className="cursor-pointer disabled:cursor-not-allowed text-green-600 hover:text-green-700 hover:bg-green-50"
-                          title="Marcar como Recebido"
-                        >
-                          <Check className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(conta)} title="Visualizar">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(conta)} title="Editar">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {isLoading && sortedContas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Carregando contas a receber...
                     </TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                )}
+                {!isLoading && sortedContas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Nenhuma conta a receber encontrada.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {(!isLoading || sortedContas.length > 0) &&
+                  sortedContas.map((conta) => (
+                    <TableRow key={conta.id}>
+                      <TableCell>{conta.id}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{conta.descricao || '-'}</span>
+                          {conta.originId && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                              title="Ver origem da conta"
+                              onClick={() => handleViewOrigin(conta)}
+                            >
+                              <Info className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{conta.dataVencimento ? formatDateBR(conta.dataVencimento) : '-'}</TableCell>
+                      <TableCell>{conta.formaPgto}</TableCell>
+                      <TableCell>{conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                      <TableCell>{getStatusBadge(conta.status)}</TableCell>
+                      <TableCell className="text-center">
+                        {conta.status === 'pendente' || conta.status === 'vencido' ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleMarcarRecebido(conta)}
+                            className="cursor-pointer disabled:cursor-not-allowed text-green-600 hover:text-green-700 hover:bg-green-50"
+                            title="Marcar como Recebido"
+                          >
+                            <Check className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(conta)} title="Visualizar">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(conta)} title="Editar">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Registros por página</span>
+                <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="cursor-pointer lg:hidden">5</SelectItem>
+                    <SelectItem value="10" className="cursor-pointer">10</SelectItem>
+                    <SelectItem value="25" className="cursor-pointer">25</SelectItem>
+                    <SelectItem value="50" className="cursor-pointer">50</SelectItem>
+                    <SelectItem value="100" className="cursor-pointer">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-center text-sm text-gray-500 md:text-left">
+                Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
+              </span>
+              {isLoading && sortedContas.length > 0 && (
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
+              )}
+            </div>
+
+            {isLoading && sortedContas.length > 0 && (
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando...
+              </span>
+            )}
+
+            <div className="flex w-full max-w-sm items-center justify-center gap-2 md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-600">
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+
+            <div className="hidden items-center gap-2 md:flex">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page <= 1 || isLoading}
+                onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
+              >
+                Anterior
+              </Button>
+              {showFirstPageShortcut && (
+                <Button
+                  variant={pagination.page === 1 ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(1)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              )}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {paginas.map((page) => (
+                <Button
+                  key={page}
+                  variant={pagination.page === page ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(page)}
+                  disabled={isLoading}
+                >
+                  {page}
+                </Button>
+              ))}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLastPageShortcut && (
+                <Button
+                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
+                  size="sm"
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={isLoading}
+                >
+                  {pagination.totalPages}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer disabled:cursor-not-allowed"
+                disabled={pagination.page >= pagination.totalPages || isLoading}
+                onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
