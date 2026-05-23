@@ -26,6 +26,15 @@ type ApiAccount = {
   accountType?: ApiAccountType | null;
 };
 
+type ApiCashEntry = {
+  id: number;
+  description?: string | null;
+  value?: number | string | null;
+  incomeDate?: string | null;
+  expenseDate?: string | null;
+  accountType?: ApiAccountType | null;
+};
+
 type HomeItem = {
   id: number;
   descricao: string;
@@ -43,6 +52,47 @@ type MonthData = {
 };
 
 const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981'];
+const CHART_TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  color: 'var(--popover-foreground)',
+  boxShadow: '0 14px 32px rgba(15, 23, 42, 0.18)',
+};
+const CHART_TOOLTIP_LABEL_STYLE = { color: 'var(--popover-foreground)' };
+const CHART_TOOLTIP_ITEM_STYLE = { color: 'var(--popover-foreground)' };
+const BAR_CHART_CURSOR = { fill: 'rgba(148, 163, 184, 0.12)' };
+const LINE_CHART_CURSOR = { stroke: 'rgba(148, 163, 184, 0.38)', strokeWidth: 1 };
+const CHART_AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 12 };
+const CHART_AXIS_LINE = { stroke: 'var(--border)' };
+const CHART_GRID_STROKE = 'var(--border)';
+const CHART_LEGEND_STYLE = { color: 'var(--foreground)' };
+const PIE_STROKE = 'var(--home-pie-stroke, #ffffff)';
+const POSITIVE_CHART_COLOR = 'var(--home-positive-chart, #10b981)';
+const NEGATIVE_CHART_COLOR = 'var(--home-negative-chart, #ef4444)';
+const BALANCE_CHART_COLOR = 'var(--home-balance-chart, #3b82f6)';
+
+const renderBalanceLegend = () => (
+  <ul className="flex items-center justify-center gap-6 text-sm" style={{ color: 'var(--foreground)' }}>
+    <li className="flex items-center gap-2">
+      <span className="h-2.5 w-2.5" style={{ backgroundColor: POSITIVE_CHART_COLOR }} />
+      <span>Receitas</span>
+    </li>
+    <li className="flex items-center gap-2">
+      <span className="h-2.5 w-2.5" style={{ backgroundColor: NEGATIVE_CHART_COLOR }} />
+      <span>Despesas</span>
+    </li>
+  </ul>
+);
+
+const renderSaldoLegend = () => (
+  <ul className="flex items-center justify-center gap-6 text-sm" style={{ color: 'var(--foreground)' }}>
+    <li className="flex items-center gap-2">
+      <span className="h-2.5 w-2.5" style={{ backgroundColor: BALANCE_CHART_COLOR }} />
+      <span>Saldo</span>
+    </li>
+  </ul>
+);
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const isTrue = (value: boolean | number | string | null | undefined) => value === true || value === 1 || value === '1' || value === 'true';
@@ -90,9 +140,20 @@ const mapAccount = (account: ApiAccount): HomeItem => ({
   tipoConta: account.accountType?.description || 'Sem tipo',
 });
 
+const mapCashEntry = (entry: ApiCashEntry, fallbackPrefix: string): HomeItem => ({
+  id: entry.id,
+  descricao: entry.description || `${fallbackPrefix} ${entry.id}`,
+  valor: Number(entry.value || 0),
+  data: normalizeDateInput(entry.incomeDate || entry.expenseDate),
+  pago: true,
+  tipoConta: entry.accountType?.description || 'Sem tipo',
+});
+
 export default function Home({ onNavigate }: HomeProps) {
   const [receivables, setReceivables] = useState<HomeItem[]>([]);
   const [payables, setPayables] = useState<HomeItem[]>([]);
+  const [incomes, setIncomes] = useState<HomeItem[]>([]);
+  const [expenses, setExpenses] = useState<HomeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchJson = async <T,>(path: string): Promise<T> => {
@@ -111,13 +172,17 @@ export default function Home({ onNavigate }: HomeProps) {
   const loadHomeData = async () => {
     setIsLoading(true);
     try {
-      const [payablesData, receivablesData] = await Promise.all([
+      const [payablesData, receivablesData, incomesData, expensesData] = await Promise.all([
         fetchJson<ApiAccount[]>('/api/accounts-payable'),
         fetchJson<ApiAccount[]>('/api/accounts-receivable'),
+        fetchJson<ApiCashEntry[]>('/api/incomes'),
+        fetchJson<ApiCashEntry[]>('/api/expenses'),
       ]);
 
       setPayables((payablesData || []).map(mapAccount));
       setReceivables((receivablesData || []).map(mapAccount));
+      setIncomes((incomesData || []).map((entry) => mapCashEntry(entry, 'Receita')));
+      setExpenses((expensesData || []).map((entry) => mapCashEntry(entry, 'Despesa')));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao carregar home.');
     } finally {
@@ -143,24 +208,24 @@ export default function Home({ onNavigate }: HomeProps) {
 
     const byKey = new Map(months.map((month) => [month.key, month]));
 
-    receivables.forEach((item) => {
+    incomes.forEach((item) => {
       const month = byKey.get(getMonthKeyFromInput(item.data));
       if (month) month.receitas += item.valor;
     });
 
-    payables.forEach((item) => {
+    expenses.forEach((item) => {
       const month = byKey.get(getMonthKeyFromInput(item.data));
       if (month) month.despesas += item.valor;
     });
 
     return months;
-  }, [payables, receivables]);
+  }, [expenses, incomes]);
 
   const categoryData = useMemo(() => {
     const currentMonth = toMonthKey(new Date());
     const totals = new Map<string, number>();
 
-    payables
+    expenses
       .filter((item) => getMonthKeyFromInput(item.data) === currentMonth)
       .forEach((item) => {
         totals.set(item.tipoConta, (totals.get(item.tipoConta) || 0) + item.valor);
@@ -183,7 +248,7 @@ export default function Home({ onNavigate }: HomeProps) {
 
         return acc;
       }, []);
-  }, [payables]);
+  }, [expenses]);
 
   const pendingReceivables = useMemo(
     () => receivables.filter((item) => !item.pago).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3),
@@ -221,15 +286,15 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-gray-600">Receitas do Mês</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUp className="h-4 w-4 text-green-600 dark:text-emerald-300" />
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">{formatCurrency(totalReceitas)}</div>
+            <div className="text-green-600 dark:text-emerald-300">{formatCurrency(totalReceitas)}</div>
             <div className="flex items-center gap-2 mt-2">
               {totalReceitas >= (previousMonth?.receitas || 0) ? (
-                <ArrowUpRight className="h-4 w-4 text-green-600" />
+                <ArrowUpRight className="h-4 w-4 text-green-600 dark:text-emerald-300" />
               ) : (
-                <ArrowDownRight className="h-4 w-4 text-red-600" />
+                <ArrowDownRight className="h-4 w-4 text-red-600 dark:text-rose-300" />
               )}
               <span className="text-gray-500">{formatTrend(totalReceitas, previousMonth?.receitas || 0)}</span>
             </div>
@@ -239,15 +304,15 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-gray-600">Despesas do Mês</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
+            <TrendingDown className="h-4 w-4 text-red-600 dark:text-rose-300" />
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">{formatCurrency(totalDespesas)}</div>
+            <div className="text-red-600 dark:text-rose-300">{formatCurrency(totalDespesas)}</div>
             <div className="flex items-center gap-2 mt-2">
               {totalDespesas >= (previousMonth?.despesas || 0) ? (
-                <ArrowUpRight className="h-4 w-4 text-red-600" />
+                <ArrowUpRight className="h-4 w-4 text-red-600 dark:text-rose-300" />
               ) : (
-                <ArrowDownRight className="h-4 w-4 text-green-600" />
+                <ArrowDownRight className="h-4 w-4 text-green-600 dark:text-emerald-300" />
               )}
               <span className="text-gray-500">{formatTrend(totalDespesas, previousMonth?.despesas || 0)}</span>
             </div>
@@ -257,15 +322,15 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-gray-600">Saldo do Mês</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-blue-600 dark:text-sky-300" />
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">{formatCurrency(saldo)}</div>
+            <div className="text-blue-600 dark:text-sky-300">{formatCurrency(saldo)}</div>
             <div className="flex items-center gap-2 mt-2">
               {saldo >= ((previousMonth?.receitas || 0) - (previousMonth?.despesas || 0)) ? (
-                <ArrowUpRight className="h-4 w-4 text-blue-600" />
+                <ArrowUpRight className="h-4 w-4 text-blue-600 dark:text-sky-300" />
               ) : (
-                <ArrowDownRight className="h-4 w-4 text-red-600" />
+                <ArrowDownRight className="h-4 w-4 text-red-600 dark:text-rose-300" />
               )}
               <span className="text-gray-500">{formatTrend(saldo, (previousMonth?.receitas || 0) - (previousMonth?.despesas || 0))}</span>
             </div>
@@ -275,10 +340,10 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-gray-600">Contas Pendentes</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertCircle className="h-4 w-4 text-orange-600 dark:text-amber-300" />
           </CardHeader>
           <CardContent>
-            <div className="text-orange-600">{pendingReceivablesAll.length + pendingPayablesAll.length} contas</div>
+            <div className="text-orange-600 dark:text-amber-300">{pendingReceivablesAll.length + pendingPayablesAll.length} contas</div>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-gray-500">{formatCurrency(totalPendente)} em aberto</span>
             </div>
@@ -293,17 +358,25 @@ export default function Home({ onNavigate }: HomeProps) {
             <CardDescription>Comparativo mensal dos últimos 6 meses</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                <Legend />
-                <Bar dataKey="receitas" fill="#10b981" name="Receitas" />
-                <Bar dataKey="despesas" fill="#ef4444" name="Despesas" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="[--home-positive-chart:#10b981] [--home-negative-chart:#ef4444] dark:[--home-positive-chart:#8bd8b1] dark:[--home-negative-chart:#e7a0a9]">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} opacity={0.45} />
+                  <XAxis dataKey="mes" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={CHART_AXIS_LINE} />
+                  <YAxis tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={CHART_AXIS_LINE} />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(Number(value))}
+                    contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                    labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                    itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                    cursor={BAR_CHART_CURSOR}
+                  />
+                  <Legend content={renderBalanceLegend} />
+                  <Bar dataKey="receitas" fill={POSITIVE_CHART_COLOR} name="Receitas" />
+                  <Bar dataKey="despesas" fill={NEGATIVE_CHART_COLOR} name="Despesas" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -313,16 +386,24 @@ export default function Home({ onNavigate }: HomeProps) {
             <CardDescription>Tendência de crescimento financeiro</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="[--home-balance-chart:#3b82f6] dark:[--home-balance-chart:#7fb7e8]">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={monthlyData.map((item) => ({ ...item, saldo: item.receitas - item.despesas }))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                <Legend />
-                <Line type="monotone" dataKey="saldo" stroke="#3b82f6" strokeWidth={2} name="Saldo" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} opacity={0.45} />
+                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={CHART_AXIS_LINE} />
+                <YAxis tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={CHART_AXIS_LINE} />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(Number(value))}
+                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                  cursor={LINE_CHART_CURSOR}
+                />
+                <Legend content={renderSaldoLegend} />
+                <Line type="monotone" dataKey="saldo" stroke={BALANCE_CHART_COLOR} strokeWidth={2} name="Saldo" />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -339,16 +420,32 @@ export default function Home({ onNavigate }: HomeProps) {
                 Nenhuma despesa no mês atual.
               </div>
             ) : (
+              <div className="[--home-pie-stroke:#ffffff] dark:[--home-pie-stroke:var(--card)]">
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="50%" outerRadius={80} fill="#8884d8" dataKey="value">
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    stroke={PIE_STROKE}
+                    strokeWidth={1}
+                  >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(Number(value))}
+                    contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                    labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                    itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                  />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             )}
             {categoryData.length > 0 && (
               <div className="mt-4 space-y-2">
@@ -374,15 +471,15 @@ export default function Home({ onNavigate }: HomeProps) {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="text-green-600 mb-3">A Receber</h4>
+                <h4 className="text-green-600 dark:text-emerald-300 mb-3">A Receber</h4>
                 <div className="space-y-2">
                   {pendingReceivables.slice(0, 2).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg dark:bg-[#273447] dark:border dark:border-[#374151] dark:border-l-2 dark:border-l-[#4ade80]/70">
                       <div>
                         <p className="text-gray-900">{item.descricao}</p>
                         <p className="text-gray-500">{getDaysLabel(item.data)}</p>
                       </div>
-                      <div className="text-green-600">{formatCurrency(item.valor)}</div>
+                      <div className="text-green-600 dark:text-[#8bd8b1]">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
                   {pendingReceivables.length === 0 && <p className="text-gray-500">Nenhuma conta a receber pendente.</p>}
@@ -390,15 +487,15 @@ export default function Home({ onNavigate }: HomeProps) {
               </div>
 
               <div>
-                <h4 className="text-red-600 mb-3">A Pagar</h4>
+                <h4 className="text-red-600 dark:text-rose-300 mb-3">A Pagar</h4>
                 <div className="space-y-2">
                   {pendingPayables.slice(0, 2).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg dark:bg-[#273447] dark:border dark:border-[#374151] dark:border-l-2 dark:border-l-[#fb7185]/70">
                       <div>
                         <p className="text-gray-900">{item.descricao}</p>
                         <p className="text-gray-500">{getDaysLabel(item.data)}</p>
                       </div>
-                      <div className="text-red-600">{formatCurrency(item.valor)}</div>
+                      <div className="text-red-600 dark:text-[#e7a0a9]">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
                   {pendingPayables.length === 0 && <p className="text-gray-500">Nenhuma conta a pagar pendente.</p>}
@@ -419,12 +516,18 @@ export default function Home({ onNavigate }: HomeProps) {
             {quickLinks.map((item) => {
               const Icon = item.icon;
               return (
-                <Button key={item.target} type="button" variant="outline" className="h-auto w-full justify-start p-4 cursor-pointer whitespace-normal" onClick={() => onNavigate(item.target)}>
+                <Button
+                  key={item.target}
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start p-4 cursor-pointer whitespace-normal transition-all duration-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm dark:border-[#374151] dark:hover:border-[#4b5a72] dark:hover:bg-[#243043] dark:hover:shadow-md"
+                  onClick={() => onNavigate(item.target)}
+                >
                   <div className="flex min-w-0 items-start gap-3 text-left">
-                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${item.color}`} />
+                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${item.color} dark:text-slate-200 transition-colors duration-200`} />
                     <div className="min-w-0">
-                      <div className="text-gray-700 font-medium leading-tight break-words">{item.title}</div>
-                      <div className="text-gray-500 text-sm mt-1">{item.subtitle}</div>
+                      <div className="text-gray-700 font-medium leading-tight break-words dark:text-slate-100">{item.title}</div>
+                      <div className="text-gray-500 text-sm mt-1 dark:text-slate-400">{item.subtitle}</div>
                     </div>
                   </div>
                 </Button>

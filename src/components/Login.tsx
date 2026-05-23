@@ -74,8 +74,8 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-yellow-50 p-4">
-      <Card className="w-full max-w-md shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-yellow-50 p-4 transition-colors dark:bg-[#1d2636] dark:bg-none">
+      <Card className="w-full max-w-md shadow-2xl dark:border-[#2f394a] dark:shadow-black/25">
         <CardHeader className="space-y-4 text-center pb-8">
           <div className="flex justify-center">
             <div className="bg-gradient-to-r from-green-600 to-blue-600 p-4 rounded-2xl">
@@ -86,7 +86,7 @@ export default function Login({ onLogin }: LoginProps) {
             <CardTitle className="text-3xl">
               <span className="text-[#00A676]">BR</span>
               <span className="text-[#F9C74F]">azuca</span>
-              <span className="text-[#013A63]">Flow</span>
+              <span className="text-[#013A63] dark:text-white">Flow</span>
             </CardTitle>
             <CardDescription className="mt-2">
               Sistema de Controle Financeiro
@@ -122,18 +122,18 @@ export default function Login({ onLogin }: LoginProps) {
             <Button 
               type="submit" 
               disabled={isSubmitting}
-              className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+              className="w-full h-12 cursor-pointer bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 dark:from-[#166534] dark:to-[#075985] dark:text-white dark:hover:from-[#15803d] dark:hover:to-[#0369a1]"
             >
               <LogIn className="w-5 h-5 mr-2" />
               {isSubmitting ? 'Entrando...' : 'Entrar'}
             </Button>
             {errorMessage && (
-              <p className="text-sm text-red-600 text-center">{errorMessage}</p>
+              <p className="text-sm text-red-600 text-center dark:text-red-400">{errorMessage}</p>
             )}
             <div className="text-center">
               <a 
                 href="#" 
-                className="text-blue-600 hover:text-blue-700 hover:underline"
+                className="text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
                 onClick={(e) => {
                   e.preventDefault();
                   alert('Funcionalidade de recuperação de senha em desenvolvimento');
@@ -144,7 +144,7 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </form>
         </CardContent>
-        <div className="pb-6 text-center text-gray-500">
+        <div className="pb-6 text-center text-gray-500 dark:text-slate-400">
           <p>© 2026 BRazucaFlow. Todos os direitos reservados.</p>
         </div>
       </Card>

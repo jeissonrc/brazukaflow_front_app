@@ -416,7 +416,7 @@ export default function TiposPagamento() {
             <CardTitle className="text-gray-600">Total de Tipos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">
+            <div className="text-blue-600 dark:text-[#7fb7e8]">
               {summary.total}
             </div>
             <p className="text-gray-500">tipos de pagamento</p>
@@ -428,7 +428,7 @@ export default function TiposPagamento() {
             <CardTitle className="text-gray-600">Ativos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">
+            <div className="text-green-600 dark:text-[#8bd8b1]">
               {totalAtivos}
             </div>
             <p className="text-gray-500">tipos ativos</p>
@@ -440,7 +440,7 @@ export default function TiposPagamento() {
             <CardTitle className="text-gray-600">Inativos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">
+            <div className="text-red-600 dark:text-[#e7a0a9]">
               {totalInativo}
             </div>
             <p className="text-gray-500">tipos inativos</p>
@@ -463,35 +463,37 @@ export default function TiposPagamento() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
-                  <Plus className="w-4 h-4 mr-2" />
+                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2 dark:text-[#8bd8b1]" />
                   Novo Tipo
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-xl">
+              <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
                 <DialogHeader>
-                  <DialogTitle>{editingTipo ? 'Editar Tipo de Pagamento' : 'Novo Tipo de Pagamento'}</DialogTitle>
-                  <DialogDescription>
+                  <DialogTitle className="dark:text-slate-100">{editingTipo ? 'Editar Tipo de Pagamento' : 'Novo Tipo de Pagamento'}</DialogTitle>
+                  <DialogDescription className="dark:text-slate-400">
                     {editingTipo ? 'Altere as informações do tipo de pagamento' : 'Cadastre um novo tipo de pagamento no sistema'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nome">Nome</Label>
+                    <Label htmlFor="nome" className="dark:text-slate-300">Nome</Label>
                     <Input 
                       id="nome" 
                       placeholder="Ex: Boleto Bancário" 
                       value={formData.nome}
                       onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="descricao">Descrição</Label>
+                    <Label htmlFor="descricao" className="dark:text-slate-300">Descrição</Label>
                     <Input 
                       id="descricao" 
                       placeholder="Descrição opcional" 
                       value={formData.descricao}
                       onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                     />
                   </div>
                   <div className="flex items-center gap-3">
@@ -501,16 +503,16 @@ export default function TiposPagamento() {
                       checked={formData.ativo}
                       onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
                     />
-                    <Label htmlFor="ativo" className={formData.ativo ? 'text-green-700' : 'text-gray-600'}>
+                    <Label htmlFor="ativo" className={formData.ativo ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-gray-600 dark:text-slate-300'}>
                       {formData.ativo ? 'Ativo' : 'Inativo'}
                     </Label>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
+                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveTipoPagamento} disabled={isSaving}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={saveTipoPagamento} disabled={isSaving}>
                     {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
@@ -523,11 +525,11 @@ export default function TiposPagamento() {
       {/* Tabela */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 dark:text-slate-100">
             <CreditCard className="w-5 h-5" />
             Tipos de Pagamento
           </CardTitle>
-          <p className="text-gray-500 mt-1">
+          <p className="text-gray-500 mt-1 dark:text-slate-400">
             Gerencie os tipos de pagamento disponíveis no sistema
           </p>
         </CardHeader>
@@ -537,58 +539,58 @@ export default function TiposPagamento() {
               <TableHeader>
                 <TableRow>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('id')}
                   >
                     ID {getSortIcon('id')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('nome')}
                   >
                     Nome {getSortIcon('nome')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('descricao')}
                   >
                     Descrição {getSortIcon('descricao')}
                   </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
+                  <TableHead className="dark:text-slate-200">Status</TableHead>
+                  <TableHead className="dark:text-slate-200">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && sortedTipos.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Carregando tipos de pagamento...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && sortedTipos.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Nenhum tipo de pagamento encontrado.
                     </TableCell>
                   </TableRow>
                 )}
                 {(!isLoading || sortedTipos.length > 0) && sortedTipos.map((tipo) => (
-                  <TableRow key={tipo.id}>
-                    <TableCell>{tipo.id}</TableCell>
-                    <TableCell>{tipo.nome}</TableCell>
-                    <TableCell className="max-w-xs truncate">
+                  <TableRow key={tipo.id} className="dark:hover:bg-[#273447]/70">
+                    <TableCell className="dark:text-slate-200">{tipo.id}</TableCell>
+                    <TableCell className="dark:text-slate-200">{tipo.nome}</TableCell>
+                    <TableCell className="max-w-xs truncate dark:text-slate-300">
                       {tipo.descricao || '-'}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {tipo.ativo ? (
-                          <Badge className="bg-green-100 text-green-700">
+                          <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Ativo
                           </Badge>
                         ) : (
-                          <Badge className="bg-gray-100 text-gray-700">
+                          <Badge className="bg-gray-100 text-gray-700 dark:bg-[#273447] dark:text-zinc-400">
                             <XCircle className="w-3 h-3 mr-1" />
                             Inativo
                           </Badge>
@@ -600,7 +602,7 @@ export default function TiposPagamento() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="cursor-pointer disabled:cursor-not-allowed"
+                          className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
                           onClick={() => handleViewDetails(tipo)}
                           title="Visualizar"
                         >
@@ -609,7 +611,7 @@ export default function TiposPagamento() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="cursor-pointer disabled:cursor-not-allowed"
+                          className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
                           onClick={() => handleEdit(tipo)}
                           title="Editar"
                         >
@@ -619,7 +621,7 @@ export default function TiposPagamento() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDelete(tipo.id)}
-                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
                           title="Excluir"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -635,9 +637,9 @@ export default function TiposPagamento() {
           <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Registros por página</span>
+                <span className="text-sm text-gray-600 dark:text-slate-300">Registros por página</span>
                 <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
-                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -649,20 +651,20 @@ export default function TiposPagamento() {
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-center text-sm text-gray-500 md:text-left">
+              <span className="text-center text-sm text-gray-500 dark:text-slate-400 md:text-left">
                 Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
               </span>
               {isLoading && sortedTipos.length > 0 && (
-                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                   Carregando...
                 </span>
               )}
             </div>
 
             {isLoading && sortedTipos.length > 0 && (
-              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                 Carregando...
               </span>
             )}
@@ -671,19 +673,19 @@ export default function TiposPagamento() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-slate-300">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -695,7 +697,7 @@ export default function TiposPagamento() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
@@ -705,32 +707,32 @@ export default function TiposPagamento() {
                 <Button
                   variant={pagination.page === 1 ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(1)}
                   disabled={isLoading}
                 >
                   1
                 </Button>
               )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {paginas.map((pagina) => (
                 <Button
                   key={pagina}
                   variant={pagina === pagination.page ? 'default' : 'outline'}
                   size="sm"
-                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagina)}
                   disabled={isLoading}
                 >
                   {pagina}
                 </Button>
               ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {showLastPageShortcut && (
                 <Button
                   variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagination.totalPages)}
                   disabled={isLoading}
                 >
@@ -740,7 +742,7 @@ export default function TiposPagamento() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -753,27 +755,27 @@ export default function TiposPagamento() {
 
       {/* Dialog de Detalhes */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
           <DialogHeader>
-            <DialogTitle>Detalhes do Tipo de Pagamento</DialogTitle>
+            <DialogTitle className="dark:text-slate-100">Detalhes do Tipo de Pagamento</DialogTitle>
           </DialogHeader>
           {selectedTipo && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>ID</Label>
-                  <p className="text-gray-900">{selectedTipo.id}</p>
+                  <Label className="dark:text-slate-300">ID</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedTipo.id}</p>
                 </div>
                 <div>
-                  <Label>Status</Label>
+                  <Label className="dark:text-slate-300">Status</Label>
                   <div className="mt-1">
                     {selectedTipo.ativo ? (
-                      <Badge className="bg-green-100 text-green-700">
+                      <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">
                         <CheckCircle className="w-3 h-3 mr-1" />
                         Ativo
                       </Badge>
                     ) : (
-                      <Badge className="bg-gray-100 text-gray-700">
+                      <Badge className="bg-gray-100 text-gray-700 dark:bg-[#273447] dark:text-zinc-400">
                         <XCircle className="w-3 h-3 mr-1" />
                         Inativo
                       </Badge>
@@ -782,17 +784,17 @@ export default function TiposPagamento() {
                 </div>
               </div>
               <div>
-                <Label>Nome</Label>
-                <p className="text-gray-900">{selectedTipo.nome}</p>
+                <Label className="dark:text-slate-300">Nome</Label>
+                <p className="text-gray-900 dark:text-slate-100">{selectedTipo.nome}</p>
               </div>
               <div>
-                <Label>Descrição</Label>
-                <p className="text-gray-900">{selectedTipo.descricao || '-'}</p>
+                <Label className="dark:text-slate-300">Descrição</Label>
+                <p className="text-gray-900 dark:text-slate-100">{selectedTipo.descricao || '-'}</p>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>

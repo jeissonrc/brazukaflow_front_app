@@ -121,6 +121,7 @@ type OriginSummary = {
   key: string;
   origem: string;
   pessoa: boolean;
+  modulo: ReportItem['modulo'] | 'todos';
   total: number;
   realizado: number;
   pendente: number;
@@ -146,6 +147,13 @@ const formatDateBR = (value: string) => {
 const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const getAccountModuleShortLabel = (modulo: ReportItem['modulo']) => (modulo === 'pagar' ? 'CP' : 'CR');
+const getOriginPersonLabel = (modulo: ReportItem['modulo'] | 'todos', compact = false) => {
+  if (modulo === 'pagar') return 'Fornecedor';
+  if (modulo === 'receber') return 'Cliente';
+  return compact ? 'Forn./Cli.' : 'Fornecedor/Cliente';
+};
+const getOriginTypeLabel = (pessoa: boolean, modulo: ReportItem['modulo'] | 'todos', compact = false) =>
+  pessoa ? getOriginPersonLabel(modulo, compact) : 'Operação';
 
 const formatDateTimeBR = (date = new Date()) =>
   date.toLocaleString('pt-BR', {
@@ -163,6 +171,17 @@ const escapeHtml = (value: string | number | null | undefined) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+
+const getReportFileTimestamp = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day}-${hours}h${minutes}`;
+};
 
 const downloadHtmlFile = (html: string, filename: string, type: string) => {
   const blob = new Blob([html], { type });
@@ -309,6 +328,7 @@ export default function Relatorios() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [relatorioMovimentoGerado, setRelatorioMovimentoGerado] = useState(false);
   const [pdfPrintHtml, setPdfPrintHtml] = useState('');
+  const [pdfPrintTitle, setPdfPrintTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchJson = async <T,>(path: string): Promise<T> => {
@@ -384,17 +404,22 @@ export default function Relatorios() {
   const getStatusBadge = (item: ReportItem) => {
     switch (item.status) {
       case 'realizado':
-        return <Badge className="bg-green-100 text-green-700">{item.statusLabel}</Badge>;
+        return <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">{item.statusLabel}</Badge>;
       case 'pendente':
-        return <Badge className="bg-yellow-100 text-yellow-700">Pendente</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-[#273447] dark:text-[#f9c87b]">Pendente</Badge>;
       case 'vencido':
-        return <Badge className="bg-red-100 text-red-700">Vencido</Badge>;
+        return <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]">Vencido</Badge>;
       default:
-        return <Badge>{item.statusLabel}</Badge>;
+        return <Badge className="dark:bg-[#273447] dark:text-slate-200">{item.statusLabel}</Badge>;
     }
   };
 
   const handleGerarRelatorio = () => {
+    if (dataInicio && dataFim && dataFim < dataInicio) {
+      toast.error('A Data Fim não pode ser menor que a Data de Início.');
+      return;
+    }
+
     let dados = [...dadosBase];
 
     if (moduloFiltro !== 'todos') {
@@ -469,6 +494,11 @@ export default function Relatorios() {
   };
 
   const handleGerarRelatorioMovimento = () => {
+    if (dataInicioMovimento && dataFimMovimento && dataFimMovimento < dataInicioMovimento) {
+      toast.error('A Data Fim não pode ser menor que a Data de Início.');
+      return;
+    }
+
     const dados = getMovimentosFiltrados({ incluirTipoConta: true });
 
     dados.sort((a, b) => {
@@ -511,6 +541,11 @@ export default function Relatorios() {
   };
 
   const handleGerarLivroCaixa = () => {
+    if (dataInicioMovimento && dataFimMovimento && dataFimMovimento < dataInicioMovimento) {
+      toast.error('A Data Fim não pode ser menor que a Data de Início.');
+      return;
+    }
+
     const dados = getMovimentosFiltrados({ incluirTipoConta: false }).sort((a, b) => {
       if (a.data !== b.data) return a.data.localeCompare(b.data);
       if (a.tipo !== b.tipo) return a.tipo === 'receita' ? -1 : 1;
@@ -633,6 +668,12 @@ export default function Relatorios() {
     return 'Relatório Geral - Contas a Pagar/Receber';
   };
 
+  const getAccountsFileModuleName = () => {
+    if (moduloFiltro === 'pagar') return 'contas-pagar';
+    if (moduloFiltro === 'receber') return 'contas-receber';
+    return 'contas-pagar-receber';
+  };
+
   const getPeriodLabel = (startDate: string, endDate: string) => {
     if (startDate && endDate) return `${formatDateBR(startDate)} a ${formatDateBR(endDate)}`;
     if (startDate) return `A partir de ${formatDateBR(startDate)}`;
@@ -642,6 +683,7 @@ export default function Relatorios() {
 
   const getAccountsGeneralExportHtml = () => {
     const title = getAccountsGeneralTitle();
+    const documentTitle = `relatorio-geral-${getAccountsFileModuleName()}-${getReportFileTimestamp()}`;
     const periodLabel = getPeriodLabel(dataInicio, dataFim);
     const rows = dadosFiltrados
       .map(
@@ -666,9 +708,11 @@ export default function Relatorios() {
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(title)}</title>
+          <meta name="color-scheme" content="light" />
+          <title>${escapeHtml(documentTitle)}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
+            html { color-scheme: light; background: #ffffff; }
+            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; margin: 24px; }
             .report-header { align-items: center; border-bottom: 2px solid #d1d5db; display: flex; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; }
             .brand { align-items: center; display: flex; }
             .brand-name { font-size: 24px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
@@ -705,7 +749,8 @@ export default function Relatorios() {
             @page { size: landscape; }
             @media print {
               * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              body { margin: 12mm; }
+              html { color-scheme: light; background: #ffffff; }
+              body { background: #ffffff; margin: 12mm; }
               button { display: none; }
               .data-table tbody td { font-size: 10px; }
               .payment-method { font-size: 10px; }
@@ -995,20 +1040,41 @@ export default function Relatorios() {
       return;
     }
 
+    setPdfPrintTitle(`relatorio-geral-${getAccountsFileModuleName()}-${getReportFileTimestamp()}`);
     setPdfPrintHtml(getAccountsGeneralExportHtml());
   };
 
   const handlePrintPdfPreview = () => {
     const iframe = document.getElementById('relatorio-pdf-preview') as HTMLIFrameElement | null;
     const iframeWindow = iframe?.contentWindow;
+    const iframeDocument = iframe?.contentDocument;
     if (!iframeWindow) {
       toast.error('Não foi possível carregar a prévia do relatório.');
       return;
     }
 
-    iframeWindow.onafterprint = () => setPdfPrintHtml('');
+    const previousTitle = document.title;
+    const printTitle = pdfPrintTitle || iframeDocument?.title || 'relatorio';
+
+    document.title = printTitle;
+    if (iframe) {
+      iframe.title = printTitle;
+    }
+    if (iframeDocument) {
+      iframeDocument.title = printTitle;
+    }
+
+    iframeWindow.onafterprint = () => {
+      document.title = previousTitle;
+      setPdfPrintHtml('');
+      setPdfPrintTitle('');
+    };
     iframeWindow.focus();
     iframeWindow.print();
+
+    window.setTimeout(() => {
+      document.title = previousTitle;
+    }, 1000);
   };
 
   const origensComContas = useMemo(() => {
@@ -1017,16 +1083,17 @@ export default function Relatorios() {
   }, [dadosBase, origins]);
 
   const resumoPorOrigem = useMemo(() => {
-    const resumo = new Map<string, OriginSummary>();
+  const resumo = new Map<string, OriginSummary>();
 
-    dadosFiltrados.filter((item) => Boolean(item.originId)).forEach((item) => {
-      const key = String(item.originId);
+  dadosFiltrados.filter((item) => Boolean(item.originId)).forEach((item) => {
+      const key = item.pessoa ? `${item.originId}-${item.modulo}` : `${item.originId}-operacao`;
       const current =
         resumo.get(key) ||
         {
           key,
           origem: item.origem || '-',
           pessoa: item.pessoa,
+          modulo: item.pessoa ? item.modulo : 'todos',
           total: 0,
           realizado: 0,
           pendente: 0,
@@ -1051,7 +1118,7 @@ export default function Relatorios() {
     const grupos = new Map<string, ReportItem[]>();
 
     dadosFiltrados.filter((item) => Boolean(item.originId)).forEach((item) => {
-      const key = String(item.originId);
+      const key = item.pessoa ? `${item.originId}-${item.modulo}` : `${item.originId}-operacao`;
       const current = grupos.get(key) || [];
       current.push(item);
       grupos.set(key, current);
@@ -1076,6 +1143,7 @@ export default function Relatorios() {
 
   const getAccountsOriginExportHtml = () => {
     const title = getAccountsOriginTitle();
+    const documentTitle = `relatorio-por-origem-${getAccountsFileModuleName()}-${getReportFileTimestamp()}`;
     const periodLabel = getPeriodLabel(dataInicio, dataFim);
     const detailRows = getAccountsOriginDetailRows();
     const summaryRows = resumoPorOrigem
@@ -1083,7 +1151,7 @@ export default function Relatorios() {
         (origem) => `
           <tr>
             <td>${escapeHtml(origem.origem)}</td>
-            <td class="center">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Operação')}</td>
+            <td class="center">${escapeHtml(getOriginTypeLabel(origem.pessoa, origem.modulo, true))}</td>
             <td class="center">${escapeHtml(origem.quantidade)}</td>
             <td class="nowrap">${escapeHtml(formatCurrency(origem.total))}</td>
             <td class="nowrap">${escapeHtml(formatCurrency(origem.realizado))}</td>
@@ -1116,9 +1184,11 @@ export default function Relatorios() {
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(title)}</title>
+          <meta name="color-scheme" content="light" />
+          <title>${escapeHtml(documentTitle)}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
+            html { color-scheme: light; background: #ffffff; }
+            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; margin: 24px; }
             .report-header { align-items: center; border-bottom: 2px solid #d1d5db; display: flex; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; }
             .brand { align-items: center; display: flex; }
             .brand-name { font-size: 24px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
@@ -1146,7 +1216,8 @@ export default function Relatorios() {
             @page { size: landscape; }
             @media print {
               * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              body { margin: 12mm; }
+              html { color-scheme: light; background: #ffffff; }
+              body { background: #ffffff; margin: 12mm; }
               button { display: none; }
               .data-table tbody td { font-size: 10px; }
               .payment-method { font-size: 10px; }
@@ -1218,7 +1289,7 @@ export default function Relatorios() {
               ${rows || '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>'}
             </tbody>
           </table>
-          <p class="legend">Legenda: CP = Contas a Pagar | CR = Contas a Receber</p>
+          <p class="legend">Legenda: CP = Contas a Pagar | CR = Contas a Receber${moduloFiltro === 'todos' ? ' | Forn./Cli. = Fornecedor ou Cliente' : ''}</p>
 
           <table class="totals-box">
             <tbody>
@@ -1243,7 +1314,7 @@ export default function Relatorios() {
         (origem) => `
           <Row>
             <Cell ss:StyleID="Cell"><Data ss:Type="String">${escapeHtml(origem.origem)}</Data></Cell>
-            <Cell ss:StyleID="CellCenter"><Data ss:Type="String">${escapeHtml(origem.pessoa ? 'Pessoa' : 'Operação')}</Data></Cell>
+            <Cell ss:StyleID="CellCenter"><Data ss:Type="String">${escapeHtml(getOriginTypeLabel(origem.pessoa, origem.modulo, true))}</Data></Cell>
             <Cell ss:StyleID="CellCenter"><Data ss:Type="Number">${origem.quantidade}</Data></Cell>
             <Cell ss:StyleID="Currency"><Data ss:Type="Number">${origem.total}</Data></Cell>
             <Cell ss:StyleID="Currency"><Data ss:Type="Number">${origem.realizado}</Data></Cell>
@@ -1334,7 +1405,7 @@ export default function Relatorios() {
       </Row>
       ${rows || '<Row><Cell ss:StyleID="Cell"><Data ss:Type="String">Nenhum registro encontrado.</Data></Cell></Row>'}
       <Row />
-      <Row><Cell ss:Index="6" ss:MergeAcross="3" ss:StyleID="Legend"><Data ss:Type="String">Legenda: CP = Contas a Pagar | CR = Contas a Receber</Data></Cell></Row>
+      <Row><Cell ss:Index="6" ss:MergeAcross="3" ss:StyleID="Legend"><Data ss:Type="String">Legenda: CP = Contas a Pagar | CR = Contas a Receber${moduloFiltro === 'todos' ? ' | Forn./Cli. = Fornecedor ou Cliente' : ''}</Data></Cell></Row>
       <Row />
       <Row><Cell ss:Index="4" ss:MergeAcross="1" ss:StyleID="TotalTitle"><Data ss:Type="String">TOTAIS</Data></Cell></Row>
       <Row><Cell ss:Index="4" ss:StyleID="TotalLabel"><Data ss:Type="String">Total Geral</Data></Cell><Cell ss:StyleID="TotalValue"><Data ss:Type="Number">${totais.total}</Data></Cell></Row>
@@ -1353,6 +1424,7 @@ export default function Relatorios() {
       return;
     }
 
+    setPdfPrintTitle(`relatorio-por-origem-${getAccountsFileModuleName()}-${getReportFileTimestamp()}`);
     setPdfPrintHtml(getAccountsOriginExportHtml());
   };
 
@@ -1375,10 +1447,18 @@ export default function Relatorios() {
     return 'Relatório Geral - Receitas/Despesas';
   };
 
+  const getMovementsGeneralFileName = () => {
+    const timestamp = getReportFileTimestamp();
+    if (movimentoFiltro === 'receita') return `relatorio-geral-receitas-${timestamp}`;
+    if (movimentoFiltro === 'despesa') return `relatorio-geral-despesas-${timestamp}`;
+    return `relatorio-geral-receitas-despesas-${timestamp}`;
+  };
+
   const getMovementTypeLabel = (tipo: MovementItem['tipo']) => (tipo === 'receita' ? 'Receita' : 'Despesa');
 
   const getMovementsGeneralExportHtml = () => {
     const title = getMovementsGeneralTitle();
+    const documentTitle = getMovementsGeneralFileName();
     const periodLabel = getPeriodLabel(dataInicioMovimento, dataFimMovimento);
     const rows = movimentosFiltrados
       .map(
@@ -1402,9 +1482,11 @@ export default function Relatorios() {
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(title)}</title>
+          <meta name="color-scheme" content="light" />
+          <title>${escapeHtml(documentTitle)}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
+            html { color-scheme: light; background: #ffffff; }
+            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; margin: 24px; }
             .report-header { align-items: center; border-bottom: 2px solid #d1d5db; display: flex; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; }
             .brand { align-items: center; display: flex; }
             .brand-name { font-size: 24px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
@@ -1430,7 +1512,8 @@ export default function Relatorios() {
             @page { size: landscape; }
             @media print {
               * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              body { margin: 12mm; }
+              html { color-scheme: light; background: #ffffff; }
+              body { background: #ffffff; margin: 12mm; }
               button { display: none; }
               .data-table tbody td { font-size: 10px; }
               table { page-break-inside: auto; }
@@ -1578,6 +1661,7 @@ export default function Relatorios() {
       return;
     }
 
+    setPdfPrintTitle(getMovementsGeneralFileName());
     setPdfPrintHtml(getMovementsGeneralExportHtml());
   };
 
@@ -1596,6 +1680,7 @@ export default function Relatorios() {
 
   const getCashBookExportHtml = () => {
     const title = 'Livro Caixa';
+    const documentTitle = `relatorio-livro-caixa-${getReportFileTimestamp()}`;
     const periodLabel =
       dataInicioMovimento && dataFimMovimento
         ? `${formatDateBR(dataInicioMovimento)} a ${formatDateBR(dataFimMovimento)}`
@@ -1627,9 +1712,11 @@ export default function Relatorios() {
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(title)}</title>
+          <meta name="color-scheme" content="light" />
+          <title>${escapeHtml(documentTitle)}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
+            html { color-scheme: light; background: #ffffff; }
+            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; margin: 24px; }
             .report-header { align-items: center; border-bottom: 2px solid #d1d5db; display: flex; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; }
             .brand { align-items: center; display: flex; }
             .brand-name { font-size: 24px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
@@ -1655,7 +1742,8 @@ export default function Relatorios() {
             @page { size: landscape; }
             @media print {
               * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              body { margin: 12mm; }
+              html { color-scheme: light; background: #ffffff; }
+              body { background: #ffffff; margin: 12mm; }
               button { display: none; }
               .data-table tbody td { font-size: 10px; }
               table { page-break-inside: auto; }
@@ -1814,6 +1902,7 @@ export default function Relatorios() {
       return;
     }
 
+    setPdfPrintTitle(`relatorio-livro-caixa-${getReportFileTimestamp()}`);
     setPdfPrintHtml(getCashBookExportHtml());
   };
 
@@ -1830,12 +1919,48 @@ export default function Relatorios() {
     );
   };
 
+  const handleDataInicioChange = (value: string) => {
+    setDataInicio(value);
+
+    if (value && dataFim && dataFim < value) {
+      setDataFim(value);
+    }
+  };
+
+  const handleDataFimChange = (value: string) => {
+    if (dataInicio && value && value < dataInicio) {
+      toast.error('A Data Fim não pode ser menor que a Data de Início.');
+      setDataFim(dataInicio);
+      return;
+    }
+
+    setDataFim(value);
+  };
+
+  const handleDataInicioMovimentoChange = (value: string) => {
+    setDataInicioMovimento(value);
+
+    if (value && dataFimMovimento && dataFimMovimento < value) {
+      setDataFimMovimento(value);
+    }
+  };
+
+  const handleDataFimMovimentoChange = (value: string) => {
+    if (dataInicioMovimento && value && value < dataInicioMovimento) {
+      toast.error('A Data Fim não pode ser menor que a Data de Início.');
+      setDataFimMovimento(dataInicioMovimento);
+      return;
+    }
+
+    setDataFimMovimento(value);
+  };
+
   const renderCommonFilters = (suffix = '') => (
     <>
       <div className="space-y-2">
-        <Label htmlFor={`modulo${suffix}`}>Módulo</Label>
+        <Label htmlFor={`modulo${suffix}`} className="dark:text-slate-300">Módulo</Label>
         <Select value={moduloFiltro} onValueChange={(value: 'todos' | 'pagar' | 'receber') => setModuloFiltro(value)}>
-          <SelectTrigger id={`modulo${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`modulo${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1847,9 +1972,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`tipoPagamento${suffix}`}>Tipo de Pagamento</Label>
+        <Label htmlFor={`tipoPagamento${suffix}`} className="dark:text-slate-300">Tipo de Pagamento</Label>
         <Select value={tipoPagamento} onValueChange={setTipoPagamento}>
-          <SelectTrigger id={`tipoPagamento${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`tipoPagamento${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1864,24 +1989,24 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`status${suffix}`}>Status</Label>
+        <Label htmlFor={`status${suffix}`} className="dark:text-slate-300">Status</Label>
         <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-          <SelectTrigger id={`status${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`status${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-            <SelectItem value="realizado" className="cursor-pointer">Pago/Recebido</SelectItem>
-            <SelectItem value="pendente" className="cursor-pointer">Pendente</SelectItem>
-            <SelectItem value="vencido" className="cursor-pointer">Vencido</SelectItem>
+            <SelectItem value="realizado" className="cursor-pointer dark:text-[#8bd8b1] dark:data-[highlighted]:bg-[#314155] dark:data-[highlighted]:text-slate-100">Pago/Recebido</SelectItem>
+            <SelectItem value="pendente" className="cursor-pointer dark:text-[#f9c87b] dark:data-[highlighted]:bg-[#314155] dark:data-[highlighted]:text-slate-100">Pendente</SelectItem>
+            <SelectItem value="vencido" className="cursor-pointer dark:text-[#e7a0a9] dark:data-[highlighted]:bg-[#314155] dark:data-[highlighted]:text-slate-100">Vencido</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`tipoData${suffix}`}>Tipo de Data</Label>
+        <Label htmlFor={`tipoData${suffix}`} className="dark:text-slate-300">Tipo de Data</Label>
         <Select value={tipoData} onValueChange={setTipoData}>
-          <SelectTrigger id={`tipoData${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`tipoData${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1892,19 +2017,33 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`dataInicio${suffix}`}>Data de Início</Label>
-        <Input id={`dataInicio${suffix}`} type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor={`dataInicio${suffix}`} className="dark:text-slate-300">Data de Início</Label>
+        <Input
+          id={`dataInicio${suffix}`}
+          type="date"
+          value={dataInicio}
+          max={dataFim || undefined}
+          onChange={(e) => handleDataInicioChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`dataFim${suffix}`}>Data Fim</Label>
-        <Input id={`dataFim${suffix}`} type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor={`dataFim${suffix}`} className="dark:text-slate-300">Data Fim</Label>
+        <Input
+          id={`dataFim${suffix}`}
+          type="date"
+          value={dataFim}
+          min={dataInicio || undefined}
+          onChange={(e) => handleDataFimChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`ordenarPor${suffix}`}>Ordenar Por</Label>
+        <Label htmlFor={`ordenarPor${suffix}`} className="dark:text-slate-300">Ordenar Por</Label>
         <Select value={ordernarPor} onValueChange={setOrdernarPor}>
-          <SelectTrigger id={`ordenarPor${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`ordenarPor${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1918,9 +2057,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`tipoOrdenacao${suffix}`}>Tipo de Ordenação</Label>
+        <Label htmlFor={`tipoOrdenacao${suffix}`} className="dark:text-slate-300">Tipo de Ordenação</Label>
         <Select value={tipoOrdenacao} onValueChange={setTipoOrdenacao}>
-          <SelectTrigger id={`tipoOrdenacao${suffix}`} className="cursor-pointer">
+          <SelectTrigger id={`tipoOrdenacao${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1935,9 +2074,9 @@ export default function Relatorios() {
   const renderMovementFilters = () => (
     <>
       <div className="space-y-2">
-        <Label htmlFor="movimentoFiltro">Tipo</Label>
+        <Label htmlFor="movimentoFiltro" className="dark:text-slate-300">Tipo</Label>
         <Select value={movimentoFiltro} onValueChange={(value: 'todos' | 'receita' | 'despesa') => setMovimentoFiltro(value)}>
-          <SelectTrigger id="movimentoFiltro" className="cursor-pointer">
+          <SelectTrigger id="movimentoFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1949,9 +2088,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="tipoContaMovimento">Tipo de Conta</Label>
+        <Label htmlFor="tipoContaMovimento" className="dark:text-slate-300">Tipo de Conta</Label>
         <Select value={tipoContaMovimento} onValueChange={setTipoContaMovimento}>
-          <SelectTrigger id="tipoContaMovimento" className="cursor-pointer">
+          <SelectTrigger id="tipoContaMovimento" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1966,9 +2105,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="contaCaixaMovimento">Conta Caixa</Label>
+        <Label htmlFor="contaCaixaMovimento" className="dark:text-slate-300">Conta Caixa</Label>
         <Select value={contaCaixaMovimento} onValueChange={setContaCaixaMovimento}>
-          <SelectTrigger id="contaCaixaMovimento" className="cursor-pointer">
+          <SelectTrigger id="contaCaixaMovimento" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1983,19 +2122,33 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="dataInicioMovimento">Data de Início</Label>
-        <Input id="dataInicioMovimento" type="date" value={dataInicioMovimento} onChange={(e) => setDataInicioMovimento(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor="dataInicioMovimento" className="dark:text-slate-300">Data de Início</Label>
+        <Input
+          id="dataInicioMovimento"
+          type="date"
+          value={dataInicioMovimento}
+          max={dataFimMovimento || undefined}
+          onChange={(e) => handleDataInicioMovimentoChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="dataFimMovimento">Data Fim</Label>
-        <Input id="dataFimMovimento" type="date" value={dataFimMovimento} onChange={(e) => setDataFimMovimento(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor="dataFimMovimento" className="dark:text-slate-300">Data Fim</Label>
+        <Input
+          id="dataFimMovimento"
+          type="date"
+          value={dataFimMovimento}
+          min={dataInicioMovimento || undefined}
+          onChange={(e) => handleDataFimMovimentoChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ordenarMovimentoPor">Ordenar Por</Label>
+        <Label htmlFor="ordenarMovimentoPor" className="dark:text-slate-300">Ordenar Por</Label>
         <Select value={ordernarMovimentoPor} onValueChange={setOrdernarMovimentoPor}>
-          <SelectTrigger id="ordenarMovimentoPor" className="cursor-pointer">
+          <SelectTrigger id="ordenarMovimentoPor" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2010,9 +2163,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="tipoOrdenacaoMovimento">Tipo de Ordenação</Label>
+        <Label htmlFor="tipoOrdenacaoMovimento" className="dark:text-slate-300">Tipo de Ordenação</Label>
         <Select value={tipoOrdenacaoMovimento} onValueChange={setTipoOrdenacaoMovimento}>
-          <SelectTrigger id="tipoOrdenacaoMovimento" className="cursor-pointer">
+          <SelectTrigger id="tipoOrdenacaoMovimento" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2027,9 +2180,9 @@ export default function Relatorios() {
   const renderCashBookFilters = () => (
     <>
       <div className="space-y-2">
-        <Label htmlFor="livroCaixaTipo">Tipo</Label>
+        <Label htmlFor="livroCaixaTipo" className="dark:text-slate-300">Tipo</Label>
         <Select value={movimentoFiltro} onValueChange={(value: 'todos' | 'receita' | 'despesa') => setMovimentoFiltro(value)}>
-          <SelectTrigger id="livroCaixaTipo" className="cursor-pointer">
+          <SelectTrigger id="livroCaixaTipo" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2041,9 +2194,9 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="livroCaixaConta">Conta Caixa</Label>
+        <Label htmlFor="livroCaixaConta" className="dark:text-slate-300">Conta Caixa</Label>
         <Select value={contaCaixaMovimento} onValueChange={setContaCaixaMovimento}>
-          <SelectTrigger id="livroCaixaConta" className="cursor-pointer">
+          <SelectTrigger id="livroCaixaConta" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2058,40 +2211,69 @@ export default function Relatorios() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="livroCaixaDataInicio">Data de Início</Label>
-        <Input id="livroCaixaDataInicio" type="date" value={dataInicioMovimento} onChange={(e) => setDataInicioMovimento(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor="livroCaixaDataInicio" className="dark:text-slate-300">Data de Início</Label>
+        <Input
+          id="livroCaixaDataInicio"
+          type="date"
+          value={dataInicioMovimento}
+          max={dataFimMovimento || undefined}
+          onChange={(e) => handleDataInicioMovimentoChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="livroCaixaDataFim">Data Fim</Label>
-        <Input id="livroCaixaDataFim" type="date" value={dataFimMovimento} onChange={(e) => setDataFimMovimento(e.target.value)} className="cursor-pointer" />
+        <Label htmlFor="livroCaixaDataFim" className="dark:text-slate-300">Data Fim</Label>
+        <Input
+          id="livroCaixaDataFim"
+          type="date"
+          value={dataFimMovimento}
+          min={dataInicioMovimento || undefined}
+          onChange={(e) => handleDataFimMovimentoChange(e.target.value)}
+          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+        />
       </div>
     </>
   );
 
   return (
     <div className="space-y-6">
-      <Dialog open={Boolean(pdfPrintHtml)} onOpenChange={(open) => !open && setPdfPrintHtml('')}>
-        <DialogContent className="!w-[90vw] !max-w-none h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
-          <DialogHeader className="px-6 py-4 border-b">
+      <Dialog
+        open={Boolean(pdfPrintHtml)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPdfPrintHtml('');
+            setPdfPrintTitle('');
+          }
+        }}
+      >
+        <DialogContent className="!w-[90vw] !max-w-none h-[92vh] p-0 gap-0 overflow-hidden flex flex-col dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
+          <DialogHeader className="px-6 py-4 border-b dark:border-[#2f394a]">
             <DialogTitle>Prévia do Relatório PDF</DialogTitle>
             <DialogDescription>Confira o relatório antes de imprimir ou salvar como PDF.</DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 bg-gray-100 p-3 overflow-hidden">
+          <div className="flex-1 min-h-0 bg-gray-100 p-3 overflow-hidden dark:bg-[#273447]">
             <iframe
               id="relatorio-pdf-preview"
-              title="Prévia do relatório PDF"
+              title={pdfPrintTitle || 'Prévia do relatório PDF'}
               srcDoc={pdfPrintHtml}
-              className="w-full h-full border-0 bg-white rounded-md shadow-sm"
+              className="w-full h-full border-0 bg-white rounded-md shadow-sm dark:bg-[#1f2a37]"
             />
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t">
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setPdfPrintHtml('')}>
+          <DialogFooter className="px-6 py-4 border-t dark:border-[#2f394a]">
+            <Button
+              variant="outline"
+              className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              onClick={() => {
+                setPdfPrintHtml('');
+                setPdfPrintTitle('');
+              }}
+            >
               Fechar
             </Button>
-            <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" onClick={handlePrintPdfPreview}>
+            <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" onClick={handlePrintPdfPreview}>
               <Download className="w-4 h-4 mr-2" />
               Imprimir / Salvar PDF
             </Button>
@@ -2105,7 +2287,7 @@ export default function Relatorios() {
             <FileText className="w-6 h-6" />
             Relatórios Gerais
           </CardTitle>
-          <CardDescription>Gere relatórios detalhados do financeiro</CardDescription>
+          <CardDescription className="dark:text-slate-400">Gere relatórios detalhados do financeiro</CardDescription>
         </CardHeader>
       </Card>
 
@@ -2115,22 +2297,24 @@ export default function Relatorios() {
           onClick={() => setMacroRelatorio('contas')}
           className={`text-left rounded-lg border p-5 transition-all cursor-pointer ${
             macroRelatorio === 'contas'
-              ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200'
-              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'
+              ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 dark:border-[#075985] dark:bg-[#243043] dark:ring-[#075985]/40'
+              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#3b4658] dark:hover:bg-[#243043]'
           }`}
           aria-pressed={macroRelatorio === 'contas'}
         >
           <div className="flex items-start gap-3">
             <div
               className={`mt-0.5 rounded-md p-2 ${
-                macroRelatorio === 'contas' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                macroRelatorio === 'contas'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-[#273447] dark:text-[#8ab4f8]'
+                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400'
               }`}
             >
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Contas a Pagar/Receber</h3>
-              <p className="text-sm text-gray-500 mt-1">Relatórios de contas, status, vencimentos e origens.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Contas a Pagar/Receber</h3>
+              <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Relatórios de contas, status, vencimentos e origens.</p>
             </div>
           </div>
         </button>
@@ -2140,22 +2324,24 @@ export default function Relatorios() {
           onClick={() => setMacroRelatorio('movimentos')}
           className={`text-left rounded-lg border p-5 transition-all cursor-pointer ${
             macroRelatorio === 'movimentos'
-              ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200'
-              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'
+              ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 dark:border-[#075985] dark:bg-[#243043] dark:ring-[#075985]/40'
+              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#3b4658] dark:hover:bg-[#243043]'
           }`}
           aria-pressed={macroRelatorio === 'movimentos'}
         >
           <div className="flex items-start gap-3">
             <div
               className={`mt-0.5 rounded-md p-2 ${
-                macroRelatorio === 'movimentos' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                macroRelatorio === 'movimentos'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-[#273447] dark:text-[#8ab4f8]'
+                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400'
               }`}
             >
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Receitas/Despesas</h3>
-              <p className="text-sm text-gray-500 mt-1">Relatórios de movimentações, entradas, saídas e livro caixa.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Receitas/Despesas</h3>
+              <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Relatórios de movimentações, entradas, saídas e livro caixa.</p>
             </div>
           </div>
         </button>
@@ -2164,9 +2350,9 @@ export default function Relatorios() {
       {macroRelatorio === 'contas' && (
         <div className="space-y-6">
           <Tabs value={tipoRelatorio} onValueChange={handleTipoRelatorioChange} className="w-full">
-            <TabsList className="grid w-full md:w-auto grid-cols-2">
-              <TabsTrigger value="geral" className="cursor-pointer">Relatório Geral</TabsTrigger>
-              <TabsTrigger value="origem" className="cursor-pointer">Relatório por Origem</TabsTrigger>
+            <TabsList className="grid w-full md:w-auto grid-cols-2 dark:bg-[#273447] dark:text-slate-200">
+              <TabsTrigger value="geral" className="cursor-pointer dark:data-[state=active]:bg-[#075985] dark:data-[state=active]:text-white">Relatório Geral</TabsTrigger>
+              <TabsTrigger value="origem" className="cursor-pointer dark:data-[state=active]:bg-[#075985] dark:data-[state=active]:text-white">Relatório por Origem</TabsTrigger>
             </TabsList>
 
             <TabsContent value="geral" className="space-y-6 mt-6">
@@ -2182,22 +2368,22 @@ export default function Relatorios() {
 
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-6">
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" onClick={handleGerarRelatorio} disabled={isLoading}>
+                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" onClick={handleGerarRelatorio} disabled={isLoading}>
                         <TrendingUp className="w-4 h-4 mr-2" />
                         {isLoading ? 'Carregando...' : 'Gerar Relatório'}
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => limparFiltrosContas()}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => limparFiltrosContas()}>
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Limpar Filtros
                       </Button>
                     </div>
-                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4" aria-hidden="true" />
+                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4 dark:bg-[#2f394a]" aria-hidden="true" />
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportAccountsGeneralPdf} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportAccountsGeneralPdf} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar PDF
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportAccountsGeneralExcel} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportAccountsGeneralExcel} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar Excel
                       </Button>
@@ -2218,23 +2404,23 @@ export default function Relatorios() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="filtroPessoa">Tipo de Origem</Label>
+                      <Label htmlFor="filtroPessoa" className="dark:text-slate-300">Tipo de Origem</Label>
                       <Select value={filtroPessoa} onValueChange={(value: 'pessoa' | 'nao-pessoa' | 'todos') => setFiltroPessoa(value)}>
-                        <SelectTrigger id="filtroPessoa" className="cursor-pointer">
+                        <SelectTrigger id="filtroPessoa" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-                          <SelectItem value="pessoa" className="cursor-pointer">Pessoa</SelectItem>
+                          <SelectItem value="pessoa" className="cursor-pointer">{getOriginPersonLabel(moduloFiltro)}</SelectItem>
                           <SelectItem value="nao-pessoa" className="cursor-pointer">Operação</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="origem">Origem Específica</Label>
+                      <Label htmlFor="origem" className="dark:text-slate-300">Origem Específica</Label>
                       <Select value={origemSelecionada} onValueChange={setOrigemSelecionada}>
-                        <SelectTrigger id="origem" className="cursor-pointer">
+                        <SelectTrigger id="origem" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue placeholder="Selecione uma origem" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2253,22 +2439,22 @@ export default function Relatorios() {
 
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-6">
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" onClick={handleGerarRelatorio} disabled={isLoading}>
+                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" onClick={handleGerarRelatorio} disabled={isLoading}>
                         <TrendingUp className="w-4 h-4 mr-2" />
                         {isLoading ? 'Carregando...' : 'Gerar Relatório'}
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => limparFiltrosContas({ incluirOrigem: true })}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => limparFiltrosContas({ incluirOrigem: true })}>
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Limpar Filtros
                       </Button>
                     </div>
-                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4" aria-hidden="true" />
+                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4 dark:bg-[#2f394a]" aria-hidden="true" />
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportAccountsOriginPdf} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportAccountsOriginPdf} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar PDF
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportAccountsOriginExcel} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportAccountsOriginExcel} disabled={!relatorioGerado || dadosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar Excel
                       </Button>
@@ -2284,9 +2470,9 @@ export default function Relatorios() {
       {macroRelatorio === 'movimentos' && (
         <div className="space-y-6">
           <Tabs value={tipoRelatorioMovimento} onValueChange={handleTipoRelatorioMovimentoChange} className="w-full">
-            <TabsList className="grid w-full md:w-auto grid-cols-2">
-              <TabsTrigger value="geral" className="cursor-pointer">Relatório Geral</TabsTrigger>
-              <TabsTrigger value="livro-caixa" className="cursor-pointer">Livro Caixa</TabsTrigger>
+            <TabsList className="grid w-full md:w-auto grid-cols-2 dark:bg-[#273447] dark:text-slate-200">
+              <TabsTrigger value="geral" className="cursor-pointer dark:data-[state=active]:bg-[#075985] dark:data-[state=active]:text-white">Relatório Geral</TabsTrigger>
+              <TabsTrigger value="livro-caixa" className="cursor-pointer dark:data-[state=active]:bg-[#075985] dark:data-[state=active]:text-white">Livro Caixa</TabsTrigger>
             </TabsList>
 
             <TabsContent value="geral" className="space-y-6 mt-6">
@@ -2302,22 +2488,22 @@ export default function Relatorios() {
 
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-6">
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" onClick={handleGerarRelatorioMovimento} disabled={isLoading}>
+                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" onClick={handleGerarRelatorioMovimento} disabled={isLoading}>
                         <TrendingUp className="w-4 h-4 mr-2" />
                         {isLoading ? 'Carregando...' : 'Gerar Relatório'}
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => limparFiltrosMovimentos()}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => limparFiltrosMovimentos()}>
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Limpar Filtros
                       </Button>
                     </div>
-                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4" aria-hidden="true" />
+                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4 dark:bg-[#2f394a]" aria-hidden="true" />
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportMovementsGeneralPdf} disabled={!relatorioMovimentoGerado || movimentosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportMovementsGeneralPdf} disabled={!relatorioMovimentoGerado || movimentosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar PDF
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportMovementsGeneralExcel} disabled={!relatorioMovimentoGerado || movimentosFiltrados.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportMovementsGeneralExcel} disabled={!relatorioMovimentoGerado || movimentosFiltrados.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar Excel
                       </Button>
@@ -2341,22 +2527,22 @@ export default function Relatorios() {
 
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-6">
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" onClick={handleGerarLivroCaixa} disabled={isLoading}>
+                      <Button className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" onClick={handleGerarLivroCaixa} disabled={isLoading}>
                         <TrendingUp className="w-4 h-4 mr-2" />
                         {isLoading ? 'Carregando...' : 'Gerar Livro Caixa'}
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => limparFiltrosMovimentos({ incluirTipoConta: false })}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => limparFiltrosMovimentos({ incluirTipoConta: false })}>
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Limpar Filtros
                       </Button>
                     </div>
-                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4" aria-hidden="true" />
+                    <div className="hidden sm:block h-9 w-px bg-gray-200 mx-4 dark:bg-[#2f394a]" aria-hidden="true" />
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportCashBookPdf} disabled={!relatorioMovimentoGerado || livroCaixa.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportCashBookPdf} disabled={!relatorioMovimentoGerado || livroCaixa.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar PDF
                       </Button>
-                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleExportCashBookExcel} disabled={!relatorioMovimentoGerado || livroCaixa.length === 0}>
+                      <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleExportCashBookExcel} disabled={!relatorioMovimentoGerado || livroCaixa.length === 0}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar Excel
                       </Button>
@@ -2374,41 +2560,41 @@ export default function Relatorios() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Total Geral</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Total Geral</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-blue-600">{formatCurrency(totais.total)}</div>
-                <p className="text-gray-500">{dadosFiltrados.length} contas</p>
+                <div className="text-blue-600 dark:text-[#8ab4f8]">{formatCurrency(totais.total)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{dadosFiltrados.length} contas</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Pago/Recebido</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Pago/Recebido</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-green-600">{formatCurrency(totais.realizado)}</div>
-                <p className="text-gray-500">{dadosFiltrados.filter((item) => item.status === 'realizado').length} contas</p>
+                <div className="text-green-600 dark:text-[#8bd8b1]">{formatCurrency(totais.realizado)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{dadosFiltrados.filter((item) => item.status === 'realizado').length} contas</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Pendente</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Pendente</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-yellow-600">{formatCurrency(totais.pendente)}</div>
-                <p className="text-gray-500">{dadosFiltrados.filter((item) => item.status === 'pendente').length} contas</p>
+                <div className="text-yellow-600 dark:text-[#f9c87b]">{formatCurrency(totais.pendente)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{dadosFiltrados.filter((item) => item.status === 'pendente').length} contas</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Vencido</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Vencido</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-red-600">{formatCurrency(totais.vencido)}</div>
-                <p className="text-gray-500">{dadosFiltrados.filter((item) => item.status === 'vencido').length} contas</p>
+                <div className="text-red-600 dark:text-[#e7a0a9]">{formatCurrency(totais.vencido)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{dadosFiltrados.filter((item) => item.status === 'vencido').length} contas</p>
               </CardContent>
             </Card>
           </div>
@@ -2417,13 +2603,13 @@ export default function Relatorios() {
             <>
               <Card>
                 <CardHeader>
-                  <CardTitle>Resumo por Origem</CardTitle>
-                  <CardDescription>{resumoPorOrigem.length} origem(ns) encontrada(s)</CardDescription>
+                  <CardTitle className="dark:text-slate-100">Resumo por Origem</CardTitle>
+                  <CardDescription className="dark:text-slate-400">{resumoPorOrigem.length} origem(ns) encontrada(s)</CardDescription>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-gray-50 dark:bg-[#243043]">
                         <TableHead>Origem</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Qtde</TableHead>
@@ -2436,22 +2622,22 @@ export default function Relatorios() {
                     <TableBody>
                       {resumoPorOrigem.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                          <TableCell colSpan={7} className="text-center text-gray-500 py-8 dark:text-slate-300">
                             Nenhuma origem encontrada para os filtros selecionados.
                           </TableCell>
                         </TableRow>
                       )}
                       {resumoPorOrigem.map((origem) => (
-                        <TableRow key={origem.key}>
+                        <TableRow key={origem.key} className="dark:hover:bg-[#273447]">
                           <TableCell>
                             <Badge variant="outline">{origem.origem}</Badge>
                           </TableCell>
-                          <TableCell>{origem.pessoa ? 'Pessoa' : 'Operação'}</TableCell>
+                          <TableCell>{getOriginTypeLabel(origem.pessoa, origem.modulo)}</TableCell>
                           <TableCell>{origem.quantidade}</TableCell>
                           <TableCell>{formatCurrency(origem.total)}</TableCell>
-                          <TableCell className="text-green-700">{formatCurrency(origem.realizado)}</TableCell>
-                          <TableCell className="text-yellow-700">{formatCurrency(origem.pendente)}</TableCell>
-                          <TableCell className="text-red-700">{formatCurrency(origem.vencido)}</TableCell>
+                          <TableCell className="text-green-700 dark:text-[#8bd8b1]">{formatCurrency(origem.realizado)}</TableCell>
+                          <TableCell className="text-yellow-700 dark:text-[#f9c87b]">{formatCurrency(origem.pendente)}</TableCell>
+                          <TableCell className="text-red-700 dark:text-[#e7a0a9]">{formatCurrency(origem.vencido)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -2462,15 +2648,15 @@ export default function Relatorios() {
               {resumoPorOrigem.map((origem) => (
                 <Card key={`detalhe-${origem.key}`}>
                   <CardHeader>
-                    <CardTitle>{origem.origem}</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="dark:text-slate-100">{origem.origem}</CardTitle>
+                    <CardDescription className="dark:text-slate-400">
                       {origem.quantidade} conta(s) - Total {formatCurrency(origem.total)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                        <TableRow className="bg-gray-50 dark:bg-[#243043]">
                           <TableHead className="text-center">Tipo</TableHead>
                           <TableHead className="text-center">Código</TableHead>
                           <TableHead>Descrição</TableHead>
@@ -2483,16 +2669,16 @@ export default function Relatorios() {
                       </TableHeader>
                       <TableBody>
                         {(dadosPorOrigem.get(origem.key) || []).map((conta) => (
-                          <TableRow key={`origem-${conta.id}`}>
+                          <TableRow key={`origem-${conta.id}`} className="dark:hover:bg-[#273447]">
                             <TableCell className="text-center">
-                              <Badge className={conta.modulo === 'receber' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                              <Badge className={conta.modulo === 'receber' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                                 {getAccountModuleShortLabel(conta.modulo)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">{conta.codigo}</TableCell>
                             <TableCell>{conta.descricao || '-'}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{conta.formaPgto}</Badge>
+                              <Badge variant="outline" className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200">{conta.formaPgto}</Badge>
                             </TableCell>
                             <TableCell className="text-center">{conta.dataNominal ? formatDateBR(conta.dataNominal) : '-'}</TableCell>
                             <TableCell className="text-center">{conta.dataEfetiva ? formatDateBR(conta.dataEfetiva) : '-'}</TableCell>
@@ -2510,13 +2696,13 @@ export default function Relatorios() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{tipoRelatorio === 'origem' ? 'Resultado Geral por Origem' : 'Resultado do Relatório'}</CardTitle>
-              <CardDescription>{dadosFiltrados.length} registro(s) encontrado(s)</CardDescription>
+              <CardTitle className="dark:text-slate-100">{tipoRelatorio === 'origem' ? 'Resultado Geral por Origem' : 'Resultado do Relatório'}</CardTitle>
+              <CardDescription className="dark:text-slate-400">{dadosFiltrados.length} registro(s) encontrado(s)</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-50 dark:bg-[#243043]">
                     <TableHead className="text-center">Tipo</TableHead>
                     <TableHead className="text-center">Código</TableHead>
                     <TableHead>Descrição</TableHead>
@@ -2531,35 +2717,35 @@ export default function Relatorios() {
                 <TableBody>
                   {dadosFiltrados.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={9} className="text-center text-gray-500 py-8 dark:text-slate-300">
                         Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
                   )}
                   {dadosFiltrados.map((conta) => (
-                    <TableRow key={conta.id}>
+                    <TableRow key={conta.id} className="dark:hover:bg-[#273447]">
                       <TableCell className="text-center">
-                        <Badge className={conta.modulo === 'receber' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                        <Badge className={conta.modulo === 'receber' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                           {getAccountModuleShortLabel(conta.modulo)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">{conta.codigo}</TableCell>
                       <TableCell>{conta.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{conta.formaPgto}</Badge>
+                        <Badge variant="outline" className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200">{conta.formaPgto}</Badge>
                       </TableCell>
                       <TableCell className="text-center">{conta.dataNominal ? formatDateBR(conta.dataNominal) : '-'}</TableCell>
                       <TableCell className="text-center">{conta.dataEfetiva ? formatDateBR(conta.dataEfetiva) : '-'}</TableCell>
                       <TableCell>{formatCurrency(conta.valor)}</TableCell>
                       <TableCell className="text-center">{getStatusBadge(conta)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{conta.origem}</Badge>
+                        <Badge variant="outline" className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200">{conta.origem}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              <p className="text-right text-xs text-gray-500 mt-2">Legenda: CP = Contas a Pagar | CR = Contas a Receber</p>
+              <p className="text-right text-xs text-gray-500 mt-2 dark:text-slate-400">Legenda: CP = Contas a Pagar | CR = Contas a Receber</p>
             </CardContent>
           </Card>
         </>
@@ -2570,54 +2756,54 @@ export default function Relatorios() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Receitas</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Receitas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-green-600">{formatCurrency(totaisMovimento.receitas)}</div>
-                <p className="text-gray-500">{movimentosFiltrados.filter((item) => item.tipo === 'receita').length} registro(s)</p>
+                <div className="text-green-600 dark:text-[#8bd8b1]">{formatCurrency(totaisMovimento.receitas)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{movimentosFiltrados.filter((item) => item.tipo === 'receita').length} registro(s)</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Despesas</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Despesas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-red-600">{formatCurrency(totaisMovimento.despesas)}</div>
-                <p className="text-gray-500">{movimentosFiltrados.filter((item) => item.tipo === 'despesa').length} registro(s)</p>
+                <div className="text-red-600 dark:text-[#e7a0a9]">{formatCurrency(totaisMovimento.despesas)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{movimentosFiltrados.filter((item) => item.tipo === 'despesa').length} registro(s)</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Saldo</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Saldo</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={totaisMovimento.saldo >= 0 ? 'text-blue-600' : 'text-red-600'}>{formatCurrency(totaisMovimento.saldo)}</div>
-                <p className="text-gray-500">receitas - despesas</p>
+                <div className={totaisMovimento.saldo >= 0 ? 'text-blue-600 dark:text-[#8ab4f8]' : 'text-red-600 dark:text-[#e7a0a9]'}>{formatCurrency(totaisMovimento.saldo)}</div>
+                <p className="text-gray-500 dark:text-slate-400">receitas - despesas</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Total de Registros</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Total de Registros</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-gray-900">{movimentosFiltrados.length}</div>
-                <p className="text-gray-500">movimentações</p>
+                <div className="text-gray-900 dark:text-slate-100">{movimentosFiltrados.length}</div>
+                <p className="text-gray-500 dark:text-slate-400">movimentações</p>
               </CardContent>
             </Card>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Resultado do Relatório</CardTitle>
-              <CardDescription>{movimentosFiltrados.length} registro(s) encontrado(s)</CardDescription>
+              <CardTitle className="dark:text-slate-100">Resultado do Relatório</CardTitle>
+              <CardDescription className="dark:text-slate-400">{movimentosFiltrados.length} registro(s) encontrado(s)</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-50 dark:bg-[#243043]">
                     <TableHead>Tipo</TableHead>
                     <TableHead>Código</TableHead>
                     <TableHead>Descrição</TableHead>
@@ -2631,27 +2817,27 @@ export default function Relatorios() {
                 <TableBody>
                   {movimentosFiltrados.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={8} className="text-center text-gray-500 py-8 dark:text-slate-300">
                         Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
                   )}
                   {movimentosFiltrados.map((movimento) => (
-                    <TableRow key={movimento.id}>
+                    <TableRow key={movimento.id} className="dark:hover:bg-[#273447]">
                       <TableCell>
-                        <Badge className={movimento.tipo === 'receita' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                        <Badge className={movimento.tipo === 'receita' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                           {movimento.tipo === 'receita' ? 'Receita' : 'Despesa'}
                         </Badge>
                       </TableCell>
                       <TableCell>{movimento.codigo}</TableCell>
                       <TableCell>{movimento.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{movimento.tipoConta}</Badge>
+                        <Badge variant="outline" className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200">{movimento.tipoConta}</Badge>
                       </TableCell>
                       <TableCell>{movimento.categoria}</TableCell>
                       <TableCell>{movimento.contaCaixa}</TableCell>
                       <TableCell>{movimento.data ? formatDateBR(movimento.data) : '-'}</TableCell>
-                      <TableCell className={movimento.tipo === 'receita' ? 'text-green-700' : 'text-red-700'}>{formatCurrency(movimento.valor)}</TableCell>
+                      <TableCell className={movimento.tipo === 'receita' ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-red-700 dark:text-[#e7a0a9]'}>{formatCurrency(movimento.valor)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -2666,54 +2852,54 @@ export default function Relatorios() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Entradas</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Entradas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-green-600">{formatCurrency(totaisMovimento.receitas)}</div>
-                <p className="text-gray-500">{movimentosFiltrados.filter((item) => item.tipo === 'receita').length} receita(s)</p>
+                <div className="text-green-600 dark:text-[#8bd8b1]">{formatCurrency(totaisMovimento.receitas)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{movimentosFiltrados.filter((item) => item.tipo === 'receita').length} receita(s)</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Saídas</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Saídas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-red-600">{formatCurrency(totaisMovimento.despesas)}</div>
-                <p className="text-gray-500">{movimentosFiltrados.filter((item) => item.tipo === 'despesa').length} despesa(s)</p>
+                <div className="text-red-600 dark:text-[#e7a0a9]">{formatCurrency(totaisMovimento.despesas)}</div>
+                <p className="text-gray-500 dark:text-slate-400">{movimentosFiltrados.filter((item) => item.tipo === 'despesa').length} despesa(s)</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Saldo Final</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Saldo Final</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={totaisMovimento.saldo >= 0 ? 'text-blue-600' : 'text-red-600'}>{formatCurrency(totaisMovimento.saldo)}</div>
-                <p className="text-gray-500">entradas - saídas</p>
+                <div className={totaisMovimento.saldo >= 0 ? 'text-blue-600 dark:text-[#8ab4f8]' : 'text-red-600 dark:text-[#e7a0a9]'}>{formatCurrency(totaisMovimento.saldo)}</div>
+                <p className="text-gray-500 dark:text-slate-400">entradas - saídas</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-gray-600">Movimentações</CardTitle>
+                <CardTitle className="text-gray-600 dark:text-slate-300">Movimentações</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-gray-900">{movimentosFiltrados.length}</div>
-                <p className="text-gray-500">registro(s)</p>
+                <div className="text-gray-900 dark:text-slate-100">{movimentosFiltrados.length}</div>
+                <p className="text-gray-500 dark:text-slate-400">registro(s)</p>
               </CardContent>
             </Card>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Livro Caixa</CardTitle>
-              <CardDescription>{livroCaixa.length} movimentação(ões) encontrada(s)</CardDescription>
+              <CardTitle className="dark:text-slate-100">Livro Caixa</CardTitle>
+              <CardDescription className="dark:text-slate-400">{livroCaixa.length} movimentação(ões) encontrada(s)</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-50 dark:bg-[#243043]">
                     <TableHead>Data</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Código</TableHead>
@@ -2728,28 +2914,28 @@ export default function Relatorios() {
                 <TableBody>
                   {livroCaixa.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={9} className="text-center text-gray-500 py-8 dark:text-slate-300">
                         Nenhuma movimentação encontrada.
                       </TableCell>
                     </TableRow>
                   )}
                   {livroCaixa.map((movimento) => (
-                    <TableRow key={`livro-${movimento.id}`}>
+                    <TableRow key={`livro-${movimento.id}`} className="dark:hover:bg-[#273447]">
                       <TableCell>{movimento.data ? formatDateBR(movimento.data) : '-'}</TableCell>
                       <TableCell>
-                        <Badge className={movimento.tipo === 'receita' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                        <Badge className={movimento.tipo === 'receita' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                           {movimento.tipo === 'receita' ? 'Receita' : 'Despesa'}
                         </Badge>
                       </TableCell>
                       <TableCell>{movimento.codigo}</TableCell>
                       <TableCell>{movimento.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{movimento.tipoConta}</Badge>
+                        <Badge variant="outline" className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200">{movimento.tipoConta}</Badge>
                       </TableCell>
                       <TableCell>{movimento.contaCaixa}</TableCell>
-                      <TableCell className="text-green-700">{movimento.entrada ? formatCurrency(movimento.entrada) : '-'}</TableCell>
-                      <TableCell className="text-red-700">{movimento.saida ? formatCurrency(movimento.saida) : '-'}</TableCell>
-                      <TableCell className={movimento.saldo >= 0 ? 'text-blue-700' : 'text-red-700'}>{formatCurrency(movimento.saldo)}</TableCell>
+                      <TableCell className="text-green-700 dark:text-[#8bd8b1]">{movimento.entrada ? formatCurrency(movimento.entrada) : '-'}</TableCell>
+                      <TableCell className="text-red-700 dark:text-[#e7a0a9]">{movimento.saida ? formatCurrency(movimento.saida) : '-'}</TableCell>
+                      <TableCell className={movimento.saldo >= 0 ? 'text-blue-700 dark:text-[#8ab4f8]' : 'text-red-700 dark:text-[#e7a0a9]'}>{formatCurrency(movimento.saldo)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

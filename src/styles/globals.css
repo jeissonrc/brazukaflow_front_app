@@ -42,24 +42,26 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: #1d2636;
+  --foreground: #e5e7eb;
+  --card: #1f2937;
+  --card-foreground: #e5e7eb;
+  --popover: #1f2937;
+  --popover-foreground: #e5e7eb;
   --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary-foreground: #111827;
+  --secondary: #273447;
+  --secondary-foreground: #e5e7eb;
+  --muted: #273447;
+  --muted-foreground: #94a3b8;
+  --accent: #273447;
+  --accent-foreground: #f1f5f9;
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
+  --border: #2f394a;
+  --input: #273447;
+  --input-background: #273447;
+  --switch-background: #475569;
   --ring: oklch(0.439 0 0);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -212,5 +214,56 @@ html {
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgba(91, 163, 201, 0.5) rgba(1, 58, 99, 0.3);
+  }
+
+  .dark .bg-white {
+    background-color: #1f2937 !important;
+  }
+
+  .dark .bg-gray-50 {
+    background-color: #1d2636 !important;
+  }
+
+  .dark .bg-gray-100 {
+    background-color: #273447 !important;
+  }
+
+  .dark .border-gray-100,
+  .dark .border-gray-200 {
+    border-color: #2f394a !important;
+  }
+
+  .dark .text-gray-900,
+  .dark .text-gray-800,
+  .dark .text-gray-700 {
+    color: #e5e7eb !important;
+  }
+
+  .dark .text-gray-600,
+  .dark .text-gray-500,
+  .dark .text-gray-400 {
+    color: #94a3b8 !important;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground);
+    box-shadow: 0 0 0 1000px var(--input-background) inset !important;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active {
+    box-shadow: 0 0 0 1000px #212c3c inset !important;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+    opacity: 0.9;
   }
 }

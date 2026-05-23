@@ -96,9 +96,9 @@ function ContaTreeItem({ conta }: { conta: ContaItem }) {
 
   return (
     <div className="ml-0">
-      <div className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg group">
+      <div className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 dark:hover:bg-[#273447] rounded-lg group">
         {conta.children && conta.children.length > 0 ? (
-          <button onClick={() => setIsOpen(!isOpen)} className="cursor-pointer text-gray-500 hover:text-gray-700">
+          <button onClick={() => setIsOpen(!isOpen)} className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200">
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         ) : (
@@ -107,19 +107,28 @@ function ContaTreeItem({ conta }: { conta: ContaItem }) {
         
         <span
           className={`${
-            conta.nivel === 1 ? 'font-semibold text-gray-900' : conta.nivel === 2 ? 'font-medium text-gray-700' : 'text-gray-600'
+            conta.nivel === 1
+              ? 'font-semibold text-gray-900 dark:text-slate-100'
+              : conta.nivel === 2
+                ? 'font-medium text-gray-700 dark:text-slate-200'
+                : 'text-gray-600 dark:text-slate-300'
           }`}
         >
           {conta.codigo} - {conta.nome}
         </span>
 
-        <Badge variant="outline" className={conta.tipo === 'receita' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}>
+        <Badge
+          variant="outline"
+          className={conta.tipo === 'receita'
+            ? '!border-transparent !bg-green-100 !text-green-700 dark:!border-[#2f394a] dark:!bg-[#273447] dark:!text-[#8bd8b1]'
+            : '!border-transparent !bg-red-100 !text-red-700 dark:!border-[#2f394a] dark:!bg-[#273447] dark:!text-[#e7a0a9]'}
+        >
           {conta.tipo === 'receita' ? 'Receita' : 'Despesa'}
         </Badge>
       </div>
       
       {isOpen && conta.children && (
-        <div className="ml-6 border-l-2 border-gray-200 pl-2">
+        <div className="ml-6 border-l-2 border-gray-200 pl-2 dark:border-[#2f394a]">
           {conta.children.map((child) => (
             <ContaTreeItem key={child.id} conta={child} />
           ))}
@@ -173,16 +182,16 @@ export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: 
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 dark:text-slate-100">
                 <FolderTree className="w-6 h-6" />
                 Plano de Contas
               </CardTitle>
-              <CardDescription className="mt-2">
+              <CardDescription className="mt-2 dark:text-slate-400">
                 Estrutura hierárquica das contas contábeis
               </CardDescription>
             </div>
             <Button 
-              className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700"
+              className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#273447] dark:text-[#7fb7e8] dark:border dark:border-[#3b4658] dark:hover:bg-[#314155]"
               onClick={onNavigateToTipos}
             >
               <Settings className="w-4 h-4 mr-2" />
@@ -197,10 +206,10 @@ export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: 
         <CardContent className="pt-6">
           <div className="space-y-2">
             {isLoading && (
-              <p className="text-center text-gray-500 py-8">Carregando plano de contas...</p>
+              <p className="text-center text-gray-500 py-8 dark:text-slate-400">Carregando plano de contas...</p>
             )}
             {!isLoading && planoContas.length === 0 && (
-              <p className="text-center text-gray-500 py-8">Nenhuma conta encontrada.</p>
+              <p className="text-center text-gray-500 py-8 dark:text-slate-400">Nenhuma conta encontrada.</p>
             )}
             {!isLoading && planoContas.map((conta) => (
               <ContaTreeItem key={conta.id} conta={conta} />

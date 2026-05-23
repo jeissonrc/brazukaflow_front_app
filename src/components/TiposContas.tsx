@@ -514,10 +514,10 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <CardTitle className="text-gray-600">Total de Tipos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">
+            <div className="text-blue-600 dark:text-[#7fb7e8]">
               {summary.total}
             </div>
-            <p className="text-gray-500">{totalAtivos} ativos</p>
+            <p className="text-gray-500 dark:text-slate-400">{totalAtivos} ativos</p>
           </CardContent>
         </Card>
 
@@ -526,10 +526,10 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <CardTitle className="text-gray-600">Tipos de Receitas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">
+            <div className="text-green-600 dark:text-[#8bd8b1]">
               {totalReceitas}
             </div>
-            <p className="text-gray-500">tipos de receitas</p>
+            <p className="text-gray-500 dark:text-slate-400">tipos de receitas</p>
           </CardContent>
         </Card>
 
@@ -538,10 +538,10 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <CardTitle className="text-gray-600">Tipos de Despesas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">
+            <div className="text-red-600 dark:text-[#e7a0a9]">
               {totalDespesas}
             </div>
-            <p className="text-gray-500">tipos de despesas</p>
+            <p className="text-gray-500 dark:text-slate-400">tipos de despesas</p>
           </CardContent>
         </Card>
       </div>
@@ -554,17 +554,17 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <Button 
                 variant="outline" 
                 onClick={onBack}
-                className="cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
+                className="cursor-pointer disabled:cursor-not-allowed flex items-center gap-2 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Voltar
               </Button>
               <div>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 dark:text-slate-100">
                   <FolderTree className="w-5 h-5" />
                   Tipos de Contas
                 </CardTitle>
-                <p className="text-gray-500 mt-1">
+                <p className="text-gray-500 mt-1 dark:text-slate-400">
                   Gerencie os tipos de contas para classificação de receitas e despesas
                 </p>
               </div>
@@ -572,17 +572,17 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
-                className="cursor-pointer disabled:cursor-not-allowed bg-blue-50 hover:bg-blue-100 text-blue-600"
+                className="cursor-pointer disabled:cursor-not-allowed bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-[#273447] dark:text-[#7fb7e8] dark:border dark:border-[#3b4658] dark:hover:bg-[#314155]"
                 onClick={onNavigateToCategorias}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Gerenciar Categorias
               </Button>
               <Button 
-                className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700"
+                className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]"
                 onClick={handleAdd}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2 dark:text-[#8bd8b1]" />
                 Novo Tipo
               </Button>
             </div>
@@ -596,7 +596,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           <div className="flex flex-col md:flex-row gap-4 justify-between">
             <div className="flex flex-col sm:flex-row gap-2 flex-1">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 dark:text-slate-400" />
                 <Input
                   placeholder="Buscar por ID, descrição ou categoria..."
                   value={searchTerm}
@@ -607,7 +607,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </div>
               <Button
                 variant="outline"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter className="w-4 h-4 mr-2" />
@@ -616,7 +616,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               {(searchTerm || filtroTipo !== 'Todos' || filtroStatus !== 'Todos' || filtroCategoria !== 'Todas') && (
-                <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleClearFilters}>
+                <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleClearFilters}>
                   <X className="w-4 h-4 mr-2" />
                   Limpar
                 </Button>
@@ -625,11 +625,11 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t dark:border-[#2f394a]">
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label className="dark:text-slate-300">Tipo</Label>
                 <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-                  <SelectTrigger className="cursor-pointer">
+                  <SelectTrigger className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -641,9 +641,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </div>
 
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label className="dark:text-slate-300">Status</Label>
                 <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                  <SelectTrigger className="cursor-pointer">
+                  <SelectTrigger className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -655,9 +655,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </div>
 
               <div className="space-y-2">
-                <Label>Categoria</Label>
+                <Label className="dark:text-slate-300">Categoria</Label>
                 <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-                  <SelectTrigger className="cursor-pointer">
+                  <SelectTrigger className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -678,8 +678,8 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       {/* Tabela de Tipos de Contas */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Tipos de Contas</CardTitle>
-          <p className="text-gray-500">
+          <CardTitle className="dark:text-slate-100">Lista de Tipos de Contas</CardTitle>
+          <p className="text-gray-500 dark:text-slate-400">
             {pagination.total} tipo(s) encontrado(s)
           </p>
         </CardHeader>
@@ -689,72 +689,72 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <TableHeader>
                 <TableRow>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('idTipo')}
                   >
                     ID Tipo {getSortIcon('idTipo')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('descricao')}
                   >
                     Descrição {getSortIcon('descricao')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('tipo')}
                   >
                     Tipo {getSortIcon('tipo')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('especie')}
                   >
                     Espécie {getSortIcon('especie')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('categoria')}
                   >
                     Categoria {getSortIcon('categoria')}
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200"
                     onClick={() => handleSort('status')}
                   >
                     Status {getSortIcon('status')}
                   </TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-right dark:text-slate-200">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && sortedTipos.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Carregando tipos de contas...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && sortedTipos.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Nenhum tipo de conta encontrado.
                     </TableCell>
                   </TableRow>
                 )}
                 {(!isLoading || sortedTipos.length > 0) && sortedTipos.map((tipo) => (
-                  <TableRow key={tipo.idTipo}>
-                    <TableCell className="font-mono">{tipo.idTipo}</TableCell>
-                    <TableCell>{tipo.descricao}</TableCell>
+                  <TableRow key={tipo.idTipo} className="dark:hover:bg-[#273447]/70">
+                    <TableCell className="font-mono dark:text-slate-200">{tipo.idTipo}</TableCell>
+                    <TableCell className="dark:text-slate-200">{tipo.descricao}</TableCell>
                     <TableCell>
-                      <Badge className={tipo.tipo === 'Receita' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                      <Badge className={tipo.tipo === 'Receita' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                         {tipo.tipo}
                       </Badge>
                     </TableCell>
-                    <TableCell>{tipo.especie}</TableCell>
-                    <TableCell>{tipo.categoria}</TableCell>
+                    <TableCell className="dark:text-slate-300">{tipo.especie}</TableCell>
+                    <TableCell className="dark:text-slate-300">{tipo.categoria}</TableCell>
                     <TableCell>
-                      <Badge className={tipo.status === 'Ativo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                      <Badge className={tipo.status === 'Ativo' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                         {tipo.status}
                       </Badge>
                     </TableCell>
@@ -764,7 +764,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleView(tipo)}
-                          className="cursor-pointer disabled:cursor-not-allowed text-blue-600 hover:text-blue-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -772,7 +772,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleEdit(tipo)}
-                          className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -780,7 +780,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDelete(tipo)}
-                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
+                          className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -795,9 +795,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Registros por página</span>
+                <span className="text-sm text-gray-600 dark:text-slate-300">Registros por página</span>
                 <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
-                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -809,20 +809,20 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-center text-sm text-gray-500 md:text-left">
+              <span className="text-center text-sm text-gray-500 dark:text-slate-400 md:text-left">
                 Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
               </span>
               {isLoading && sortedTipos.length > 0 && (
-                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                   Carregando...
                 </span>
               )}
             </div>
 
             {isLoading && sortedTipos.length > 0 && (
-              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                 Carregando...
               </span>
             )}
@@ -831,19 +831,19 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-slate-300">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -865,32 +865,32 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 <Button
                   variant={pagination.page === 1 ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(1)}
                   disabled={isLoading}
                 >
                   1
                 </Button>
               )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {paginas.map((page) => (
                 <Button
                   key={page}
                   variant={pagination.page === page ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(page)}
                   disabled={isLoading}
                 >
                   {page}
                 </Button>
               ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {showLastPageShortcut && (
                 <Button
                   variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagination.totalPages)}
                   disabled={isLoading}
                 >
@@ -900,7 +900,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -913,12 +913,12 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
       {/* Dialog de Cadastro/Edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="dark:text-slate-100">
               {editingTipo ? 'Editar Tipo de Conta' : 'Novo Tipo de Conta'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="dark:text-slate-400">
               {editingTipo 
                 ? 'Altere as informações do tipo de conta' 
                 : 'Preencha os dados para cadastrar um novo tipo de conta'}
@@ -927,32 +927,34 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           <div className="grid grid-cols-2 gap-4 py-4">
             {editingTipo && (
               <div className="space-y-2">
-                <Label htmlFor="idTipo">ID Tipo</Label>
+                <Label htmlFor="idTipo" className="dark:text-slate-300">ID Tipo</Label>
                 <Input
                   id="idTipo"
                   value={formData.idTipo}
                   disabled
+                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100"
                 />
               </div>
             )}
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="descricao">Descrição</Label>
+              <Label htmlFor="descricao" className="dark:text-slate-300">Descrição</Label>
               <Input 
                 id="descricao" 
                 placeholder="Nome descritivo do tipo de conta" 
                 value={formData.descricao}
                 onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tipo">Tipo</Label>
+              <Label htmlFor="tipo" className="dark:text-slate-300">Tipo</Label>
               <Select 
                 value={formData.tipo} 
                 onValueChange={(value) => {
                   setFormData({ ...formData, tipo: value, idCategoria: '', especie: '' });
                 }}
               >
-                <SelectTrigger id="tipo" className="cursor-pointer">
+                <SelectTrigger id="tipo" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -962,16 +964,17 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="especie">Espécie</Label>
+              <Label htmlFor="especie" className="dark:text-slate-300">Espécie</Label>
               <Input 
                 id="especie" 
                 placeholder="Ex: Operacional, Financeira" 
                 value={formData.especie}
                 onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
+                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </div>
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="categoria">Categoria</Label>
+              <Label htmlFor="categoria" className="dark:text-slate-300">Categoria</Label>
               <Select 
                 value={formData.idCategoria} 
                 onValueChange={(value) => {
@@ -981,9 +984,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                     idCategoria: value,
                     especie: cat?.especie || formData.especie
                   });
-                }}
-              >
-                <SelectTrigger id="categoria" className="cursor-pointer">
+                  }}
+                >
+                <SelectTrigger id="categoria" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1004,15 +1007,15 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 checked={formData.status === 'Ativo'}
                 onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
               />
-              <Label htmlFor="status">Ativo</Label>
+              <Label htmlFor="status" className="dark:text-slate-300">Ativo</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
             <Button 
-              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" 
+              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" 
               onClick={handleSave}
               disabled={isSaving || !formData.descricao || !formData.tipo || !formData.idCategoria}
             >
@@ -1024,52 +1027,57 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
       {/* Dialog de Visualização */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
           <DialogHeader>
-            <DialogTitle>Detalhes do Tipo de Conta</DialogTitle>
+            <DialogTitle className="dark:text-slate-100">Detalhes do Tipo de Conta</DialogTitle>
           </DialogHeader>
           {viewingTipo && (
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-500">ID Tipo</Label>
-                  <p className="font-mono">{viewingTipo.idTipo}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">ID Tipo</Label>
+                  <p className="font-mono dark:text-slate-100">{viewingTipo.idTipo}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-500">Status</Label>
+                  <Label className="text-gray-500 dark:text-slate-300">Status</Label>
                   <div className="mt-1">
-                    <Badge variant={viewingTipo.status === 'Ativo' ? 'default' : 'outline'}>
+                    <Badge
+                      variant="outline"
+                      className={viewingTipo.status === 'Ativo'
+                        ? '!border-transparent !bg-green-100 !text-green-700 dark:!border-[#2f394a] dark:!bg-[#273447] dark:!text-[#8bd8b1]'
+                        : '!border-transparent !bg-red-100 !text-red-700 dark:!border-[#2f394a] dark:!bg-[#273447] dark:!text-[#e7a0a9]'}
+                    >
                       {viewingTipo.status}
                     </Badge>
                   </div>
                 </div>
               </div>
               <div>
-                <Label className="text-gray-500">Descrição</Label>
-                <p>{viewingTipo.descricao}</p>
+                <Label className="text-gray-500 dark:text-slate-300">Descrição</Label>
+                <p className="dark:text-slate-100">{viewingTipo.descricao}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-500">Tipo</Label>
+                  <Label className="text-gray-500 dark:text-slate-300">Tipo</Label>
                   <div className="mt-1">
-                    <Badge className={viewingTipo.tipo === 'Receita' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                    <Badge className={viewingTipo.tipo === 'Receita' ? 'bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]' : 'bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]'}>
                       {viewingTipo.tipo}
                     </Badge>
                   </div>
                 </div>
                 <div>
-                  <Label className="text-gray-500">Espécie</Label>
-                  <p>{viewingTipo.especie}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Espécie</Label>
+                  <p className="dark:text-slate-100">{viewingTipo.especie}</p>
                 </div>
               </div>
               <div>
-                <Label className="text-gray-500">Categoria</Label>
-                <p>{viewingTipo.idCategoria} - {viewingTipo.categoria}</p>
+                <Label className="text-gray-500 dark:text-slate-300">Categoria</Label>
+                <p className="dark:text-slate-100">{viewingTipo.idCategoria} - {viewingTipo.categoria}</p>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setViewDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setViewDialogOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>

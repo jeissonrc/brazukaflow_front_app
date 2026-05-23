@@ -342,7 +342,7 @@ export default function Usuarios() {
   const getPerfilBadge = (perfil: string) => {
     if (perfil === 'admin') {
       return (
-        <Badge className="bg-yellow-100 text-yellow-700">
+        <Badge className="bg-yellow-100 text-yellow-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#f6d365]">
           <Shield className="w-3 h-3 mr-1" />
           Admin
         </Badge>
@@ -350,7 +350,7 @@ export default function Usuarios() {
     }
 
     return (
-      <Badge className="bg-gray-100 text-gray-700">
+      <Badge className="bg-gray-100 text-slate-500 dark:border-[#2f394a] dark:bg-[#273447] dark:text-zinc-400">
         <User className="w-3 h-3 mr-1" />
         Comum
       </Badge>
@@ -359,9 +359,17 @@ export default function Usuarios() {
 
   const getStatusBadge = (status: string) => {
     if (status === 'ativo') {
-      return <Badge className="bg-green-100 text-green-700">Ativo</Badge>;
+      return (
+        <Badge className="bg-green-100 text-green-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#8bd8b1]">
+          Ativo
+        </Badge>
+      );
     }
-    return <Badge className="bg-red-100 text-red-700">Inativo</Badge>;
+    return (
+      <Badge className="bg-red-100 text-red-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#e7a0a9]">
+        Inativo
+      </Badge>
+    );
   };
 
   const getInitials = (nome: string) =>
@@ -534,7 +542,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Usuários Ativos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">{summary.ativos}</div>
+            <div className="text-green-600 dark:text-[#8bd8b1]">{summary.ativos}</div>
             <p className="text-gray-500">ativos no sistema</p>
           </CardContent>
         </Card>
@@ -544,7 +552,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Administradores</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-purple-600">{summary.admins}</div>
+            <div className="text-yellow-600 dark:text-[#f6d365]">{summary.admins}</div>
             <p className="text-gray-500">com acesso total</p>
           </CardContent>
         </Card>
@@ -554,7 +562,7 @@ export default function Usuarios() {
             <CardTitle className="text-gray-600">Comuns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-blue-600">{summary.comuns}</div>
+            <div className="text-blue-600 dark:text-zinc-400">{summary.comuns}</div>
             <p className="text-gray-500">usuários comuns</p>
           </CardContent>
         </Card>
@@ -574,44 +582,70 @@ export default function Usuarios() {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
-                  <Plus className="w-4 h-4 mr-2" />
+                <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2 dark:text-[#8bd8b1]" />
                   Novo Usuário
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-xl">
+              <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
                 <DialogHeader>
-                  <DialogTitle>{editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
-                  <DialogDescription>{editingUsuario ? 'Altere as informações do usuário' : 'Cadastre um novo usuário no sistema'}</DialogDescription>
+                  <DialogTitle className="dark:text-slate-100">{editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
+                  <DialogDescription className="dark:text-slate-400">
+                    {editingUsuario ? 'Altere as informações do usuário' : 'Cadastre um novo usuário no sistema'}
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nome">Nome Completo</Label>
-                    <Input id="nome" placeholder="Nome do usuário" value={formData.nome} onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))} />
+                    <Label htmlFor="nome" className="dark:text-slate-300">
+                      Nome Completo
+                    </Label>
+                    <Input
+                      id="nome"
+                      placeholder="Nome do usuário"
+                      value={formData.nome}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login">Login</Label>
-                    <Input id="login" placeholder="usuario" value={formData.login} onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))} />
+                    <Label htmlFor="login" className="dark:text-slate-300">
+                      Login
+                    </Label>
+                    <Input
+                      id="login"
+                      placeholder="usuario"
+                      value={formData.login}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
+                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="senha">{editingUsuario ? 'Nova senha (opcional)' : 'Senha'}</Label>
+                    <Label htmlFor="senha" className="dark:text-slate-300">
+                      {editingUsuario ? 'Nova senha (opcional)' : 'Senha'}
+                    </Label>
                     <Input
                       id="senha"
                       type="password"
                       placeholder="••••••••"
                       value={formData.senha}
                       onChange={(e) => setFormData((prev) => ({ ...prev, senha: e.target.value }))}
+                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="perfil">Perfil de Acesso</Label>
+                    <Label htmlFor="perfil" className="dark:text-slate-300">
+                      Perfil de Acesso
+                    </Label>
                     <Select value={formData.perfil} onValueChange={(value: 'admin' | 'comum') => setFormData((prev) => ({ ...prev, perfil: value }))}>
-                      <SelectTrigger id="perfil" className="cursor-pointer">
+                      <SelectTrigger
+                        id="perfil"
+                        className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                      >
                         <SelectValue placeholder="Selecione o perfil" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin" className="cursor-pointer">Admin - Acesso Total</SelectItem>
-                        <SelectItem value="comum" className="cursor-pointer">Comum - Acesso Operacional</SelectItem>
+                        <SelectItem value="admin" className="cursor-pointer dark:text-slate-100">Admin - Acesso Total</SelectItem>
+                        <SelectItem value="comum" className="cursor-pointer dark:text-slate-100">Comum - Acesso Operacional</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -622,16 +656,28 @@ export default function Usuarios() {
                       checked={formData.ativo}
                       onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
                     />
-                    <Label htmlFor="ativo" className={formData.ativo ? 'text-green-700' : 'text-gray-600'}>
+                    <Label
+                      htmlFor="ativo"
+                      className={formData.ativo ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-gray-600 dark:text-slate-300'}
+                    >
                       {formData.ativo ? 'Ativo' : 'Inativo'}
                     </Label>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog} disabled={isSaving}>
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+                    onClick={handleCloseDialog}
+                    disabled={isSaving}
+                  >
                     Cancelar
                   </Button>
-                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveUsuario} disabled={isSaving}>
+                  <Button
+                    className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]"
+                    onClick={saveUsuario}
+                    disabled={isSaving}
+                  >
                     {isSaving ? 'Salvando...' : editingUsuario ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
@@ -647,48 +693,48 @@ export default function Usuarios() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('nome')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200" onClick={() => handleSort('nome')}>
                     Usuário {getSortIcon('nome')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('login')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200" onClick={() => handleSort('login')}>
                     Login {getSortIcon('login')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('perfil')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200" onClick={() => handleSort('perfil')}>
                     Perfil {getSortIcon('perfil')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#273447] dark:text-slate-200" onClick={() => handleSort('status')}>
                     Status {getSortIcon('status')}
                   </TableHead>
-                  <TableHead>Ações</TableHead>
+                  <TableHead className="dark:text-slate-200">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && sortedUsuarios.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Carregando usuários...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && sortedUsuarios.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={5} className="text-center text-gray-500 py-8 dark:text-slate-400">
                       Nenhum usuário encontrado.
                     </TableCell>
                   </TableRow>
                 )}
                 {(!isLoading || sortedUsuarios.length > 0) &&
                   sortedUsuarios.map((usuario) => (
-                    <TableRow key={usuario.id}>
+                    <TableRow key={usuario.id} className="dark:hover:bg-[#273447]/70">
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            <AvatarFallback className="bg-green-100 text-green-600">{getInitials(usuario.nome)}</AvatarFallback>
+                            <AvatarFallback className="bg-green-100 text-green-600 dark:bg-[#273447] dark:text-[#8bd8b1]">{getInitials(usuario.nome)}</AvatarFallback>
                           </Avatar>
-                          <span>{usuario.nome}</span>
+                          <span className="text-gray-900 dark:text-slate-200">{usuario.nome}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{usuario.login}</TableCell>
+                      <TableCell className="text-gray-700 dark:text-slate-300">{usuario.login}</TableCell>
                       <TableCell>{getPerfilBadge(usuario.perfil)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -697,17 +743,17 @@ export default function Usuarios() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(usuario)} title="Visualizar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleViewDetails(usuario)} title="Visualizar">
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(usuario)} title="Editar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(usuario)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDelete(usuario.id)}
-                            className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700"
+                            className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
                             title="Excluir"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -741,16 +787,16 @@ export default function Usuarios() {
                 Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
               </span>
               {isLoading && sortedUsuarios.length > 0 && (
-                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:inline-flex">
+                  <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                   Carregando...
                 </span>
               )}
             </div>
 
             {isLoading && sortedUsuarios.length > 0 && (
-              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 dark:text-[#7fb7e8] md:hidden">
+                <Loader2 className="h-4 w-4 animate-spin dark:text-[#7fb7e8]" />
                 Carregando...
               </span>
             )}
@@ -759,19 +805,19 @@ export default function Usuarios() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-slate-300">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -783,7 +829,7 @@ export default function Usuarios() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
@@ -793,32 +839,44 @@ export default function Usuarios() {
                 <Button
                   variant={pagination.page === 1 ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={
+                    pagination.page === 1
+                      ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white'
+                      : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'
+                  }
                   onClick={() => handlePageChange(1)}
                   disabled={isLoading}
                 >
                   1
                 </Button>
               )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {paginas.map((pagina) => (
                 <Button
                   key={pagina}
                   variant={pagina === pagination.page ? 'default' : 'outline'}
                   size="sm"
-                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={
+                    pagina === pagination.page
+                      ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white'
+                      : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'
+                  }
                   onClick={() => handlePageChange(pagina)}
                   disabled={isLoading}
                 >
                   {pagina}
                 </Button>
               ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {showLastPageShortcut && (
                 <Button
                   variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={
+                    pagination.page === pagination.totalPages
+                      ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white'
+                      : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'
+                  }
                   onClick={() => handlePageChange(pagination.totalPages)}
                   disabled={isLoading}
                 >
@@ -828,7 +886,7 @@ export default function Usuarios() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -840,9 +898,9 @@ export default function Usuarios() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
           <DialogHeader>
-            <DialogTitle>Detalhes do Usuário</DialogTitle>
+            <DialogTitle className="dark:text-slate-100">Detalhes do Usuário</DialogTitle>
           </DialogHeader>
           {selectedUsuario && (
             <div className="space-y-4">
@@ -851,22 +909,22 @@ export default function Usuarios() {
                   <AvatarFallback className="bg-green-100 text-green-600 text-lg">{getInitials(selectedUsuario.nome)}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold">{selectedUsuario.nome}</p>
-                  <p className="text-gray-500">{selectedUsuario.login}</p>
+                  <p className="font-semibold dark:text-slate-100">{selectedUsuario.nome}</p>
+                  <p className="text-gray-500 dark:text-slate-400">{selectedUsuario.login}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Perfil</Label>
+                  <Label className="dark:text-slate-300">Perfil</Label>
                   <div className="mt-1">{getPerfilBadge(selectedUsuario.perfil)}</div>
                 </div>
                 <div>
-                  <Label>Status</Label>
+                  <Label className="dark:text-slate-300">Status</Label>
                   <div className="mt-1">{getStatusBadge(selectedUsuario.status)}</div>
                 </div>
               </div>
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-blue-900">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-[#273447] dark:border-[#3b4658]">
+                <p className="text-blue-900 dark:text-[#7fb7e8]">
                   <strong>Permissões:</strong>
                   <br />
                   {selectedUsuario.perfil === 'admin' ? <>• Acesso total ao sistema</> : <>• Acesso operacional financeiro</>}
@@ -875,7 +933,11 @@ export default function Usuarios() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
+            <Button
+              variant="outline"
+              className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              onClick={() => setDetailsOpen(false)}
+            >
               Fechar
             </Button>
           </DialogFooter>

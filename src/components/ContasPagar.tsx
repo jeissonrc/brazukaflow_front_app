@@ -557,13 +557,13 @@ export default function ContasPagar() {
   const getStatusBadge = (status: ContaPagar['status']) => {
     switch (status) {
       case 'pago':
-        return <Badge className="bg-green-100 text-green-700">Pago</Badge>;
+        return <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">Pago</Badge>;
       case 'pendente':
-        return <Badge className="bg-yellow-100 text-yellow-700">Pendente</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-[#273447] dark:text-[#f9c87b]">Pendente</Badge>;
       case 'vencido':
-        return <Badge className="bg-red-100 text-red-700">Vencido</Badge>;
+        return <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]">Vencido</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge className="dark:bg-[#273447] dark:text-slate-200">{status}</Badge>;
     }
   };
 
@@ -887,31 +887,31 @@ export default function ContasPagar() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Pendente</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Pendente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-yellow-600">{totalPendente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{summary.pendente.quantidade} contas</p>
+            <div className="text-yellow-600 dark:text-[#f9c87b]">{totalPendente.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">{summary.pendente.quantidade} contas</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Pago</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Pago</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-green-600">{totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{summary.pago.quantidade} contas</p>
+            <div className="text-green-600 dark:text-[#8bd8b1]">{totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">{summary.pago.quantidade} contas</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Vencido</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Vencido</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">{totalVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{summary.vencido.quantidade} contas</p>
+            <div className="text-red-600 dark:text-[#e7a0a9]">{totalVencido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">{summary.vencido.quantidade} contas</p>
           </CardContent>
         </Card>
       </div>
@@ -926,15 +926,15 @@ export default function ContasPagar() {
                   placeholder="Buscar contas a pagar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
               </div>
-              <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={() => setShowFilters((prev) => !prev)}>
+              <Button variant="outline" className="sm:w-auto cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:hover:bg-[#314155]" onClick={() => setShowFilters((prev) => !prev)}>
                 <Filter className="w-4 h-4 mr-2" />
                 Filtrar
               </Button>
               {(searchTerm || hasAdvancedFilters) && (
-                <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={clearSearchAndFilters}>
+                <Button variant="outline" className="sm:w-auto cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:hover:bg-[#314155]" onClick={clearSearchAndFilters}>
                   <X className="w-4 h-4 mr-2" />
                   Limpar
                 </Button>
@@ -943,12 +943,12 @@ export default function ContasPagar() {
             <div className="flex flex-col sm:flex-row gap-2">
               <Dialog open={massDialogOpen} onOpenChange={(open) => (open ? setMassDialogOpen(true) : handleCloseMassDialog())}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed border-blue-600 text-blue-600 hover:bg-blue-50">
+                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-[#3b4658] dark:bg-[#273447] dark:text-[#8ab4f8] dark:hover:bg-[#314155]">
                     <Copy className="w-4 h-4 mr-2" />
                     Gerar em Massa
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
                   <form onSubmit={saveMassContas}>
                     <DialogHeader>
                       <DialogTitle>Gerar Contas a Pagar em Massa</DialogTitle>
@@ -956,7 +956,7 @@ export default function ContasPagar() {
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="origemMassa">Origem da Conta <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="origemMassa" className="dark:text-slate-300">Origem da Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="origemMassa"
                           name="origemMassa"
@@ -966,15 +966,16 @@ export default function ContasPagar() {
                           onInvalid={(e) => setRequiredMessage(e, 'Informe a origem da conta.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, origemConta: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="origemFornecedor">Tipo da Origem</Label>
+                        <Label htmlFor="origemFornecedor" className="dark:text-slate-300">Tipo da Origem</Label>
                         <Select
                           value={massForm.origemFornecedor ? 'fornecedor' : 'operacao'}
                           onValueChange={(value) => setMassForm((prev) => ({ ...prev, origemFornecedor: value === 'fornecedor' }))}
                         >
-                          <SelectTrigger id="origemFornecedor" className="cursor-pointer">
+                          <SelectTrigger id="origemFornecedor" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -984,7 +985,7 @@ export default function ContasPagar() {
                         </Select>
                       </div>
                       <div className="col-span-full space-y-2">
-                        <Label htmlFor="descricaoMassa">Descrição <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="descricaoMassa" className="dark:text-slate-300">Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="descricaoMassa"
                           name="descricaoMassa"
@@ -994,12 +995,13 @@ export default function ContasPagar() {
                           onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição das contas.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, descricao: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="tipoContaMassa">Tipo de Conta <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="tipoContaMassa" className="dark:text-slate-300">Tipo de Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Select value={massForm.accountTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, accountTypeId: value }))}>
-                          <SelectTrigger id="tipoContaMassa" aria-required="true" className="cursor-pointer">
+                          <SelectTrigger id="tipoContaMassa" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue placeholder="Selecione o tipo" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1029,9 +1031,9 @@ export default function ContasPagar() {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="formaPgtoMassa">Forma de Pagamento <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="formaPgtoMassa" className="dark:text-slate-300">Forma de Pagamento <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Select value={massForm.paymentTypeId} onValueChange={(value) => setMassForm((prev) => ({ ...prev, paymentTypeId: value }))}>
-                          <SelectTrigger id="formaPgtoMassa" aria-required="true" className="cursor-pointer">
+                          <SelectTrigger id="formaPgtoMassa" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1061,7 +1063,7 @@ export default function ContasPagar() {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="valorMassa">Valor Total <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="valorMassa" className="dark:text-slate-300">Valor Total <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="valorMassa"
                           name="valorMassa"
@@ -1073,10 +1075,11 @@ export default function ContasPagar() {
                           onInvalid={(e) => setRequiredMessage(e, 'Informe o valor total.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, valorTotal: formatCurrencyInput(e.target.value) }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="parcelas">Quantidade de Parcelas <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="parcelas" className="dark:text-slate-300">Quantidade de Parcelas <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="parcelas"
                           name="parcelas"
@@ -1089,10 +1092,11 @@ export default function ContasPagar() {
                           onInvalid={(e) => setNumberMessage(e, 'Informe a quantidade de parcelas.', 'Informe pelo menos 1 parcela.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, parcelas: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="dataInicio">Data Primeira Parcela (Efetiva) <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="dataInicio" className="dark:text-slate-300">Data Primeira Parcela (Efetiva) <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="dataInicio"
                           name="dataInicio"
@@ -1102,11 +1106,11 @@ export default function ContasPagar() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data da primeira parcela.', 'Informe uma data válida.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, dataInicio: e.target.value }))}
-                          className="cursor-pointer"
+                          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                         />
                       </div>
                       <div className="col-span-full space-y-2">
-                        <Label htmlFor="obsMassa">Observações</Label>
+                        <Label htmlFor="obsMassa" className="dark:text-slate-300">Observações</Label>
                         <Textarea
                           id="obsMassa"
                           name="obsMassa"
@@ -1114,19 +1118,20 @@ export default function ContasPagar() {
                           rows={3}
                           value={massForm.observacoes}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
-                      <div className="col-span-full p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-blue-800">
+                      <div className="col-span-full p-4 bg-blue-50 border border-blue-200 rounded-lg dark:border-[#2f394a] dark:bg-[#273447]">
+                        <p className="text-blue-800 dark:text-[#8ab4f8]">
                           <strong>Exemplo:</strong> Se informar valor total de R$ 9.000,00 e 3 parcelas, serão geradas 3 contas de R$ 3.000,00 cada, com vencimentos mensais a partir da data informada.
                         </p>
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseMassDialog}>
+                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseMassDialog}>
                         Cancelar
                       </Button>
-                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700" disabled={isMassSaving}>
+                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white" disabled={isMassSaving}>
                         <Copy className="w-4 h-4 mr-2" />
                         {isMassSaving ? 'Gerando...' : 'Gerar Contas'}
                       </Button>
@@ -1136,12 +1141,12 @@ export default function ContasPagar() {
               </Dialog>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={openCreateDialog}>
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Conta
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
                   <form onSubmit={saveConta}>
                     <DialogHeader>
                       <DialogTitle>{editingConta ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</DialogTitle>
@@ -1151,7 +1156,7 @@ export default function ContasPagar() {
                     </DialogHeader>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                       <div className="col-span-full space-y-2">
-                        <Label htmlFor="descricao">Descrição <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="descricao" className="dark:text-slate-300">Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="descricao"
                           name="descricao"
@@ -1161,12 +1166,13 @@ export default function ContasPagar() {
                           onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição da conta.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="tipoConta">Tipo de Conta <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="tipoConta" className="dark:text-slate-300">Tipo de Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
-                          <SelectTrigger id="tipoConta" aria-required="true" className="cursor-pointer">
+                          <SelectTrigger id="tipoConta" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue placeholder="Selecione o tipo" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1196,9 +1202,9 @@ export default function ContasPagar() {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="formaPgto">Forma de Pagamento <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="formaPgto" className="dark:text-slate-300">Forma de Pagamento <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Select value={formData.paymentTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentTypeId: value }))}>
-                          <SelectTrigger id="formaPgto" aria-required="true" className="cursor-pointer">
+                          <SelectTrigger id="formaPgto" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1228,17 +1234,18 @@ export default function ContasPagar() {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="numeroDoc">Número do Documento</Label>
+                        <Label htmlFor="numeroDoc" className="dark:text-slate-300">Número do Documento</Label>
                         <Input
                           id="numeroDoc"
                           name="numeroDoc"
                           placeholder="Ex: NF-1234"
                           value={formData.numeroDoc}
                           onChange={(e) => setFormData((prev) => ({ ...prev, numeroDoc: e.target.value }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="valor">Valor <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="valor" className="dark:text-slate-300">Valor <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="valor"
                           name="valor"
@@ -1250,10 +1257,11 @@ export default function ContasPagar() {
                           onInvalid={(e) => setRequiredMessage(e, 'Informe o valor da conta.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, valor: formatCurrencyInput(e.target.value) }))}
+                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="dataNominal">Data Nominal (Emissão) <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="dataNominal" className="dark:text-slate-300">Data Nominal (Emissão) <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="dataNominal"
                           name="dataNominal"
@@ -1264,11 +1272,11 @@ export default function ContasPagar() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data nominal.', 'A data nominal não pode ser maior que a data de vencimento.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, dataNominal: e.target.value }))}
-                          className="cursor-pointer"
+                          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="dataVencimento">Data Vencimento <span className="text-red-600">*</span></Label>
+                        <Label htmlFor="dataVencimento" className="dark:text-slate-300">Data Vencimento <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
                           id="dataVencimento"
                           name="dataVencimento"
@@ -1279,19 +1287,19 @@ export default function ContasPagar() {
                           onInvalid={(e) => setDateMessage(e, 'Informe a data de vencimento.', 'A data de vencimento não pode ser menor que a data nominal.')}
                           onInput={clearFieldValidity}
                           onChange={(e) => setFormData((prev) => ({ ...prev, dataVencimento: e.target.value }))}
-                          className="cursor-pointer"
+                          className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="pago">Status da Conta <span className="text-red-600">*</span></Label>
-                        <div className="flex h-10 items-center gap-3 rounded-md border border-input px-3">
+                        <Label htmlFor="pago" className="dark:text-slate-300">Status da Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
+                        <div className="flex h-10 items-center gap-3 px-1">
                           <Switch
                             id="pago"
                             className="cursor-pointer"
                             checked={formData.status === 'pago'}
                             onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, status: checked ? 'pago' : 'pendente' }))}
                           />
-                          <Label htmlFor="pago" className={formData.status === 'pago' ? 'text-green-700' : 'text-gray-600'}>
+                          <Label htmlFor="pago" className={formData.status === 'pago' ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-gray-600 dark:text-slate-300'}>
                             {formData.status === 'pago' ? 'Pago' : 'Não pago'}
                           </Label>
                         </div>
@@ -1299,10 +1307,10 @@ export default function ContasPagar() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
+                      <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
                         Cancelar
                       </Button>
-                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" disabled={isSaving}>
+                      <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" disabled={isSaving}>
                         {isSaving ? 'Salvando...' : editingConta ? 'Atualizar' : 'Salvar'}
                       </Button>
                     </DialogFooter>
@@ -1313,11 +1321,11 @@ export default function ContasPagar() {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t dark:border-[#2f394a]">
               <div className="space-y-2">
-                <Label htmlFor="statusFiltro">Status</Label>
+                <Label htmlFor="statusFiltro" className="dark:text-slate-300">Status</Label>
                 <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-                  <SelectTrigger id="statusFiltro" className="cursor-pointer">
+                  <SelectTrigger id="statusFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1330,9 +1338,9 @@ export default function ContasPagar() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentTypeFiltro">Forma Pgto</Label>
+                <Label htmlFor="paymentTypeFiltro" className="dark:text-slate-300">Forma Pgto</Label>
                 <Select value={paymentTypeFiltro} onValueChange={setPaymentTypeFiltro}>
-                  <SelectTrigger id="paymentTypeFiltro" className="cursor-pointer">
+                  <SelectTrigger id="paymentTypeFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1347,9 +1355,9 @@ export default function ContasPagar() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="accountTypeFiltro">Tipo de Conta</Label>
+                <Label htmlFor="accountTypeFiltro" className="dark:text-slate-300">Tipo de Conta</Label>
                 <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer">
+                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1364,9 +1372,9 @@ export default function ContasPagar() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="originFiltro">Origem</Label>
+                <Label htmlFor="originFiltro" className="dark:text-slate-300">Origem</Label>
                 <Select value={originFiltro} onValueChange={setOriginFiltro}>
-                  <SelectTrigger id="originFiltro" className="cursor-pointer">
+                  <SelectTrigger id="originFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1381,13 +1389,13 @@ export default function ContasPagar() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataInicioFiltro">Vencimento Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer" />
+                <Label htmlFor="dataInicioFiltro" className="dark:text-slate-300">Vencimento Inicial</Label>
+                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataFimFiltro">Vencimento Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer" />
+                <Label htmlFor="dataFimFiltro" className="dark:text-slate-300">Vencimento Final</Label>
+                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
               </div>
             </div>
           )}
@@ -1399,21 +1407,21 @@ export default function ContasPagar() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
+                <TableRow className="bg-gray-50 dark:bg-[#243043]">
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('id')}>
                     Código {getSortIcon('id')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('descricao')}>
                     Descrição {getSortIcon('descricao')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataVencimento')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('dataVencimento')}>
                     Data Vcto {getSortIcon('dataVencimento')}
                   </TableHead>
                   <TableHead>Forma Pgto</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('valor')}>
                     Valor {getSortIcon('valor')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('status')}>
                     Status {getSortIcon('status')}
                   </TableHead>
                   <TableHead className="text-center">Marcar Pago</TableHead>
@@ -1423,21 +1431,21 @@ export default function ContasPagar() {
               <TableBody>
                 {isLoading && sortedContas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8 dark:text-slate-300">
                       Carregando contas a pagar...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && sortedContas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8 dark:text-slate-300">
                       Nenhuma conta a pagar encontrada.
                     </TableCell>
                   </TableRow>
                 )}
                 {(!isLoading || sortedContas.length > 0) &&
                   sortedContas.map((conta) => (
-                    <TableRow key={conta.id}>
+                    <TableRow key={conta.id} className="dark:hover:bg-[#273447]">
                       <TableCell>{conta.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -1447,7 +1455,7 @@ export default function ContasPagar() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                              className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer dark:text-[#8ab4f8] dark:hover:bg-[#314155] dark:hover:text-[#bcd6ff]"
                               title="Ver origem da conta"
                               onClick={() => handleViewOrigin(conta)}
                             >
@@ -1466,7 +1474,7 @@ export default function ContasPagar() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleMarcarPago(conta)}
-                            className="cursor-pointer disabled:cursor-not-allowed text-green-600 hover:text-green-700 hover:bg-green-50"
+                            className="cursor-pointer disabled:cursor-not-allowed text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:hover:text-[#b7f0cf]"
                             title="Marcar como Pago"
                           >
                             <Check className="w-4 h-4" />
@@ -1477,13 +1485,13 @@ export default function ContasPagar() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(conta)} title="Visualizar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleViewDetails(conta)} title="Visualizar">
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(conta)} title="Editar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(conta)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1494,12 +1502,12 @@ export default function ContasPagar() {
             </Table>
           </div>
 
-          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 dark:border-[#2f394a] md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Registros por página</span>
+                <span className="text-sm text-gray-600 dark:text-slate-300">Registros por página</span>
                 <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
-                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1511,11 +1519,11 @@ export default function ContasPagar() {
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-center text-sm text-gray-500 md:text-left">
+              <span className="text-center text-sm text-gray-500 md:text-left dark:text-slate-400">
                 Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
               </span>
               {isLoading && sortedContas.length > 0 && (
-                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 dark:text-[#8ab4f8] md:inline-flex">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Carregando...
                 </span>
@@ -1523,7 +1531,7 @@ export default function ContasPagar() {
             </div>
 
             {isLoading && sortedContas.length > 0 && (
-              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 dark:text-[#8ab4f8] md:hidden">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando...
               </span>
@@ -1533,19 +1541,19 @@ export default function ContasPagar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-slate-300">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -1557,7 +1565,7 @@ export default function ContasPagar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
@@ -1567,32 +1575,32 @@ export default function ContasPagar() {
                 <Button
                   variant={pagination.page === 1 ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(1)}
                   disabled={isLoading}
                 >
                   1
                 </Button>
               )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {paginas.map((pagina) => (
                 <Button
                   key={pagina}
                   variant={pagina === pagination.page ? 'default' : 'outline'}
                   size="sm"
-                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagina === pagination.page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagina)}
                   disabled={isLoading}
                 >
                   {pagina}
                 </Button>
               ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {showLastPageShortcut && (
                 <Button
                   variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagination.totalPages)}
                   disabled={isLoading}
                 >
@@ -1602,7 +1610,7 @@ export default function ContasPagar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -1614,7 +1622,7 @@ export default function ContasPagar() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Detalhes da Conta a Pagar</DialogTitle>
           </DialogHeader>
@@ -1622,62 +1630,62 @@ export default function ContasPagar() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Código</Label>
-                  <p className="text-gray-900">{selectedConta.id}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Código</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.id}</p>
                 </div>
                 <div>
-                  <Label>Status</Label>
+                  <Label className="text-gray-500 dark:text-slate-300">Status</Label>
                   <div className="mt-1">{getStatusBadge(selectedConta.status)}</div>
                 </div>
               </div>
               <div>
-                <Label>Descrição</Label>
-                <p className="text-gray-900">{selectedConta.descricao || '-'}</p>
+                <Label className="text-gray-500 dark:text-slate-300">Descrição</Label>
+                <p className="text-gray-900 dark:text-slate-100">{selectedConta.descricao || '-'}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Forma de Pagamento</Label>
-                  <p className="text-gray-900">{selectedConta.formaPgto}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Forma de Pagamento</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.formaPgto}</p>
                 </div>
                 <div>
-                  <Label>Número do Documento</Label>
-                  <p className="text-gray-900">{selectedConta.numeroDoc || '-'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Data Nominal (Emissão)</Label>
-                  <p className="text-gray-900">{selectedConta.dataNominal ? formatDateBR(selectedConta.dataNominal) : '-'}</p>
-                </div>
-                <div>
-                  <Label>Data Vencimento</Label>
-                  <p className="text-gray-900">{selectedConta.dataVencimento ? formatDateBR(selectedConta.dataVencimento) : '-'}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Número do Documento</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.numeroDoc || '-'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Valor</Label>
-                  <p className="text-gray-900">{selectedConta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Data Nominal (Emissão)</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.dataNominal ? formatDateBR(selectedConta.dataNominal) : '-'}</p>
                 </div>
                 <div>
-                  <Label>Data Pagamento</Label>
-                  <p className="text-gray-900">{selectedConta.dataPagamento ? formatDateBR(selectedConta.dataPagamento) : '-'}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Data Vencimento</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.dataVencimento ? formatDateBR(selectedConta.dataVencimento) : '-'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Tipo de Conta</Label>
-                  <p className="text-gray-900">{selectedConta.tipoConta}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Valor</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                 </div>
                 <div>
-                  <Label>Categoria</Label>
-                  <p className="text-gray-900">{selectedConta.categoria}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Data Pagamento</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.dataPagamento ? formatDateBR(selectedConta.dataPagamento) : '-'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-500 dark:text-slate-300">Tipo de Conta</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.tipoConta}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-500 dark:text-slate-300">Categoria</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedConta.categoria}</p>
                 </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
@@ -1685,17 +1693,17 @@ export default function ContasPagar() {
       </Dialog>
 
       <Dialog open={originDialogOpen} onOpenChange={setOriginDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Origem da Conta</DialogTitle>
             <DialogDescription>Conta gerada a partir da origem abaixo.</DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
-            <Label>Origem</Label>
-            <p className="mt-1 text-gray-900">{selectedOriginName}</p>
+          <div className="rounded-md border border-blue-100 bg-blue-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
+            <Label className="dark:text-slate-300">Origem</Label>
+            <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOriginName}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setOriginDialogOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setOriginDialogOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
@@ -1711,8 +1719,8 @@ export default function ContasPagar() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMarcarPago} className="cursor-pointer bg-green-600 hover:bg-green-700">
+            <AlertDialogCancel className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMarcarPago} className="cursor-pointer bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155]">
               Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>

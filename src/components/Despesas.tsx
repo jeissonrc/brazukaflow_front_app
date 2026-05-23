@@ -551,31 +551,31 @@ export default function Despesas() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Total de Despesas</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Total de Despesas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-red-600">{totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">{summary.quantidade} lançamentos</p>
+            <div className="text-red-600 dark:text-[#e7a0a9]">{totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">{summary.quantidade} lançamentos</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Ticket Médio</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Ticket Médio</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-orange-600">{ticketMedio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">por lançamento</p>
+            <div className="text-orange-600 dark:text-[#f9c87b]">{ticketMedio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">por lançamento</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Despesas no Mês</CardTitle>
+            <CardTitle className="text-gray-600 dark:text-slate-300">Despesas no Mês</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-purple-600">{despesasMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            <p className="text-gray-500">mês atual</p>
+            <div className="text-purple-600 dark:text-[#c084fc]">{despesasMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            <p className="text-gray-500 dark:text-slate-400">mês atual</p>
           </CardContent>
         </Card>
       </div>
@@ -586,14 +586,14 @@ export default function Despesas() {
             <div className="flex flex-col sm:flex-row gap-2 flex-1">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input placeholder="Buscar despesas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                <Input placeholder="Buscar despesas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400" />
               </div>
-              <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={() => setShowFilters((prev) => !prev)}>
+              <Button variant="outline" className="sm:w-auto cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:hover:bg-[#314155]" onClick={() => setShowFilters((prev) => !prev)}>
                 <Filter className="w-4 h-4 mr-2" />
                 Filtrar
               </Button>
               {(searchTerm || hasAdvancedFilters) && (
-                <Button variant="outline" className="sm:w-auto cursor-pointer" onClick={clearSearchAndFilters}>
+                <Button variant="outline" className="sm:w-auto cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:hover:bg-[#314155]" onClick={clearSearchAndFilters}>
                   <X className="w-4 h-4 mr-2" />
                   Limpar
                 </Button>
@@ -602,12 +602,12 @@ export default function Despesas() {
             <div className="flex flex-col sm:flex-row gap-2">
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={openCreateDialog}>
+                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={openCreateDialog}>
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Despesa
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
                   <DialogHeader>
                     <DialogTitle>{editingDespesa ? 'Editar Despesa' : 'Nova Despesa'}</DialogTitle>
                     <DialogDescription>
@@ -627,7 +627,7 @@ export default function Despesas() {
                     <div className="space-y-2">
                       <Label htmlFor="contaCaixa">Conta Caixa</Label>
                       <Select value={formData.cashAccountId} onValueChange={(value) => setFormData((prev) => ({ ...prev, cashAccountId: value }))}>
-                        <SelectTrigger id="contaCaixa" className="cursor-pointer">
+                        <SelectTrigger id="contaCaixa" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue placeholder="Selecione a conta" />
                         </SelectTrigger>
                         <SelectContent>
@@ -642,7 +642,7 @@ export default function Despesas() {
                     <div className="space-y-2">
                       <Label htmlFor="tipoConta">Tipo de Conta</Label>
                       <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
-                        <SelectTrigger id="tipoConta" className="cursor-pointer">
+                        <SelectTrigger id="tipoConta" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
@@ -663,6 +663,7 @@ export default function Despesas() {
                         placeholder="0,00"
                         value={formData.valor}
                         onChange={(e) => setFormData((prev) => ({ ...prev, valor: formatCurrencyInput(e.target.value) }))}
+                        className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                       />
                     </div>
                     <div className="space-y-2">
@@ -672,15 +673,15 @@ export default function Despesas() {
                         type="date"
                         value={formData.dataDespesa}
                         onChange={(e) => setFormData((prev) => ({ ...prev, dataDespesa: e.target.value }))}
-                        className="cursor-pointer"
+                        className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                       />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={handleCloseDialog}>
+                    <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
                       Cancelar
                     </Button>
-                    <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700" onClick={saveDespesa} disabled={isSaving}>
+                    <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={saveDespesa} disabled={isSaving}>
                       {isSaving ? 'Salvando...' : editingDespesa ? 'Atualizar' : 'Salvar'}
                     </Button>
                   </DialogFooter>
@@ -690,11 +691,11 @@ export default function Despesas() {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t dark:border-[#2f394a]">
               <div className="space-y-2">
-                <Label htmlFor="accountTypeFiltro">Tipo de Conta</Label>
+                <Label htmlFor="accountTypeFiltro" className="dark:text-slate-300">Tipo de Conta</Label>
                 <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer">
+                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -709,9 +710,9 @@ export default function Despesas() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cashAccountFiltro">Conta Caixa</Label>
+                <Label htmlFor="cashAccountFiltro" className="dark:text-slate-300">Conta Caixa</Label>
                 <Select value={cashAccountFiltro} onValueChange={setCashAccountFiltro}>
-                  <SelectTrigger id="cashAccountFiltro" className="cursor-pointer">
+                  <SelectTrigger id="cashAccountFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -726,13 +727,13 @@ export default function Despesas() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataInicioFiltro">Data Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer" />
+                <Label htmlFor="dataInicioFiltro" className="dark:text-slate-300">Data Inicial</Label>
+                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataFimFiltro">Data Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer" />
+                <Label htmlFor="dataFimFiltro" className="dark:text-slate-300">Data Final</Label>
+                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
               </div>
             </div>
           )}
@@ -744,21 +745,21 @@ export default function Despesas() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('id')}>
+                <TableRow className="bg-gray-50 dark:bg-[#243043]">
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('id')}>
                     Código {getSortIcon('id')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('descricao')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('descricao')}>
                     Descrição {getSortIcon('descricao')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('tipoConta')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('tipoConta')}>
                     Tipo Conta {getSortIcon('tipoConta')}
                   </TableHead>
                   <TableHead>Conta Caixa</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('valor')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('valor')}>
                     Valor {getSortIcon('valor')}
                   </TableHead>
-                  <TableHead className="cursor-pointer hover:bg-gray-50" onClick={() => handleSort('dataDespesa')}>
+                  <TableHead className="cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2c394d]" onClick={() => handleSort('dataDespesa')}>
                     Data {getSortIcon('dataDespesa')}
                   </TableHead>
                   <TableHead>Ações</TableHead>
@@ -767,38 +768,38 @@ export default function Despesas() {
               <TableBody>
                 {isLoading && sortedDespesas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8 dark:text-slate-300">
                       Carregando despesas...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && sortedDespesas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8 dark:text-slate-300">
                       Nenhuma despesa encontrada.
                     </TableCell>
                   </TableRow>
                 )}
                 {(!isLoading || sortedDespesas.length > 0) &&
                   sortedDespesas.map((despesa) => (
-                    <TableRow key={despesa.id}>
+                    <TableRow key={despesa.id} className="dark:hover:bg-[#273447]">
                       <TableCell>{despesa.id}</TableCell>
                       <TableCell>{despesa.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{despesa.tipoConta}</Badge>
+                        <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#a1a1aa]">{despesa.tipoConta}</Badge>
                       </TableCell>
                       <TableCell>{despesa.contaCaixa}</TableCell>
-                      <TableCell className="text-red-600">{despesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                      <TableCell className="text-red-600 dark:text-[#e7a0a9]">{despesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
                       <TableCell>{despesa.dataDespesa ? formatDateBR(despesa.dataDespesa) : '-'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleViewDetails(despesa)} title="Visualizar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleViewDetails(despesa)} title="Visualizar">
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => handleEdit(despesa)} title="Editar">
+                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(despesa)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -809,12 +810,12 @@ export default function Despesas() {
             </Table>
           </div>
 
-          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+          <div ref={paginationRef} className="mt-4 flex flex-col items-center gap-3 border-t pt-4 dark:border-[#2f394a] md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Registros por página</span>
+                <span className="text-sm text-gray-600 dark:text-slate-300">Registros por página</span>
                 <Select value={String(registrosPorPagina)} onValueChange={handleRegistrosPorPaginaChange}>
-                  <SelectTrigger className="h-9 w-[84px] cursor-pointer">
+                  <SelectTrigger className="h-9 w-[84px] cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -826,11 +827,11 @@ export default function Despesas() {
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-center text-sm text-gray-500 md:text-left">
+              <span className="text-center text-sm text-gray-500 md:text-left dark:text-slate-400">
                 Mostrando {primeiroRegistro}-{ultimoRegistro} de {pagination.total} registros
               </span>
               {isLoading && sortedDespesas.length > 0 && (
-                <span className="hidden items-center gap-1.5 text-sm text-blue-600 md:inline-flex">
+                <span className="hidden items-center gap-1.5 text-sm text-blue-600 dark:text-[#8ab4f8] md:inline-flex">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Carregando...
                 </span>
@@ -838,7 +839,7 @@ export default function Despesas() {
             </div>
 
             {isLoading && sortedDespesas.length > 0 && (
-              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 md:hidden">
+              <span className="inline-flex items-center justify-center gap-1.5 text-sm text-blue-600 dark:text-[#8ab4f8] md:hidden">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando...
               </span>
@@ -848,19 +849,19 @@ export default function Despesas() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-slate-300">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -872,7 +873,7 @@ export default function Despesas() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page <= 1 || isLoading}
                 onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
               >
@@ -882,32 +883,32 @@ export default function Despesas() {
                 <Button
                   variant={pagination.page === 1 ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(1)}
                   disabled={isLoading}
                 >
                   1
                 </Button>
               )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {paginas.map((page) => (
                 <Button
                   key={page}
                   variant={pagination.page === page ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(page)}
                   disabled={isLoading}
                 >
                   {page}
                 </Button>
               ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500">...</span>}
+              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
               {showLastPageShortcut && (
                 <Button
                   variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
                   size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700' : 'cursor-pointer'}
+                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
                   onClick={() => handlePageChange(pagination.totalPages)}
                   disabled={isLoading}
                 >
@@ -917,7 +918,7 @@ export default function Despesas() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer disabled:cursor-not-allowed"
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
                 disabled={pagination.page >= pagination.totalPages || isLoading}
                 onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
               >
@@ -929,7 +930,7 @@ export default function Despesas() {
       </Card>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Detalhes da Despesa</DialogTitle>
           </DialogHeader>
@@ -937,42 +938,42 @@ export default function Despesas() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Código</Label>
-                  <p className="text-gray-900">{selectedDespesa.id}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Código</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.id}</p>
                 </div>
                 <div>
-                  <Label>Conta Caixa</Label>
-                  <p className="text-gray-900">{selectedDespesa.contaCaixa}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Conta Caixa</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.contaCaixa}</p>
                 </div>
               </div>
               <div>
-                <Label>Descrição</Label>
-                <p className="text-gray-900">{selectedDespesa.descricao || '-'}</p>
+                <Label className="text-gray-500 dark:text-slate-300">Descrição</Label>
+                <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.descricao || '-'}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Tipo de Conta</Label>
-                  <p className="text-gray-900">{selectedDespesa.tipoConta}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Tipo de Conta</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.tipoConta}</p>
                 </div>
                 <div>
-                  <Label>Categoria</Label>
-                  <p className="text-gray-900">{selectedDespesa.categoria}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Categoria</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.categoria}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Valor</Label>
-                  <p className="text-gray-900 text-red-600">{selectedDespesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Valor</Label>
+                  <p className="text-red-600 dark:text-[#e7a0a9]">{selectedDespesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                 </div>
                 <div>
-                  <Label>Data da Despesa</Label>
-                  <p className="text-gray-900">{selectedDespesa.dataDespesa ? formatDateBR(selectedDespesa.dataDespesa) : '-'}</p>
+                  <Label className="text-gray-500 dark:text-slate-300">Data da Despesa</Label>
+                  <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.dataDespesa ? formatDateBR(selectedDespesa.dataDespesa) : '-'}</p>
                 </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed" onClick={() => setDetailsOpen(false)}>
+            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>
           </DialogFooter>
