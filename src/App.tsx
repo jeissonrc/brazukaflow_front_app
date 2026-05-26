@@ -19,6 +19,7 @@ import Login from './components/Login';
 import TiposContas from './components/TiposContas';
 import Categorias from './components/Categorias';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './lib/auth';
+import { canManageSystem, getRoleByProfileId } from './lib/profileRoles';
 
 type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'usuarios' | 'tipos-contas' | 'categorias';
 
@@ -30,6 +31,10 @@ type AuthUser = {
   name: string;
   active: number;
   profileId: number | null;
+  profile?: {
+    id: number;
+    name: string;
+  };
 };
 
 export default function App() {
@@ -89,16 +94,23 @@ export default function App() {
     toast.success('Você saiu do sistema com sucesso!');
   };
 
+  const authUserRole = getRoleByProfileId(authUser?.profileId ?? authUser?.profile?.id);
+  const authUserCanManageSystem = canManageSystem(authUserRole);
+
   const menuItems = [
     { id: 'home' as MenuOption, label: 'Home', icon: HomeIcon },
     { id: 'receber' as MenuOption, label: 'Contas a Receber', icon: TrendingUp },
     { id: 'pagar' as MenuOption, label: 'Contas a Pagar', icon: TrendingDown },
     { id: 'receitas' as MenuOption, label: 'Receitas', icon: DollarSign },
     { id: 'despesas' as MenuOption, label: 'Despesas', icon: Wallet },
-    { id: 'plano-contas' as MenuOption, label: 'Plano de Contas', icon: FolderTree },
-    { id: 'tipos-pagamento' as MenuOption, label: 'Tipos de Pagamento', icon: CreditCard },
+    ...(authUserCanManageSystem
+      ? [
+          { id: 'plano-contas' as MenuOption, label: 'Plano de Contas', icon: FolderTree },
+          { id: 'tipos-pagamento' as MenuOption, label: 'Tipos de Pagamento', icon: CreditCard },
+        ]
+      : []),
     { id: 'relatorios' as MenuOption, label: 'Relatórios', icon: FileText },
-    { id: 'usuarios' as MenuOption, label: 'Usuários', icon: Users },
+    { id: 'usuarios' as MenuOption, label: authUserCanManageSystem ? 'Usuários' : 'Minha Conta', icon: Users },
   ];
 
   if (!isLoggedIn) {

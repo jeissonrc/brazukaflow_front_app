@@ -5,13 +5,14 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Switch } from './ui/switch';
 import { AUTH_USER_KEY, getAuthToken } from '../lib/auth';
+import { PROFILE_IDS, canManageSystem, getRoleByProfileId, type UserRole } from '../lib/profileRoles';
 
 type Profile = {
   id: number;
@@ -31,7 +32,7 @@ type Usuario = {
   id: number;
   nome: string;
   login: string;
-  perfil: 'admin' | 'comum';
+  perfil: UserRole;
   status: 'ativo' | 'inativo';
 };
 
@@ -39,7 +40,7 @@ type UsuarioForm = {
   nome: string;
   login: string;
   senha: string;
-  perfil: 'admin' | 'comum';
+  perfil: 'admin' | 'operational';
   ativo: boolean;
 };
 
@@ -61,6 +62,8 @@ type UsuariosSummary = {
   ativos: number;
   admins: number;
   comuns: number;
+  activeAdmins: number;
+  activeUsers: number;
 };
 
 type UsuariosPaginatedResponse = {
@@ -73,7 +76,7 @@ const DEFAULT_FORM: UsuarioForm = {
   nome: '',
   login: '',
   senha: '',
-  perfil: 'comum',
+  perfil: 'operational',
   ativo: true,
 };
 
@@ -89,35 +92,42 @@ const DEFAULT_SUMMARY: UsuariosSummary = {
   ativos: 0,
   admins: 0,
   comuns: 0,
+  activeAdmins: 0,
+  activeUsers: 0,
 };
 
 const calculateUsuariosSummary = (items: Usuario[]): UsuariosSummary =>
   items.reduce(
     (acc, usuario) => {
       acc.total += 1;
-      if (usuario.status === 'ativo') acc.ativos += 1;
-      if (usuario.perfil === 'admin') acc.admins += 1;
-      if (usuario.perfil === 'comum') acc.comuns += 1;
+      if (usuario.status === 'ativo') {
+        acc.ativos += 1;
+        acc.activeUsers += 1;
+      }
+      if (usuario.perfil === 'admin') {
+        acc.admins += 1;
+        if (usuario.status === 'ativo') acc.activeAdmins += 1;
+      }
+      if (usuario.perfil === 'operational') acc.comuns += 1;
       return acc;
     },
-    { total: 0, ativos: 0, admins: 0, comuns: 0 },
+    { total: 0, ativos: 0, admins: 0, comuns: 0, activeAdmins: 0, activeUsers: 0 },
   );
 
+const normalizeUsuariosSummary = (summary?: Partial<UsuariosSummary>): UsuariosSummary => ({
+  ...DEFAULT_SUMMARY,
+  ...summary,
+  activeAdmins: summary?.activeAdmins ?? summary?.admins ?? 0,
+  activeUsers: summary?.activeUsers ?? summary?.ativos ?? 0,
+});
+
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
-
-const profileToRole = (profileName?: string): 'admin' | 'comum' => {
-  if (!profileName) {
-    return 'comum';
-  }
-
-  return profileName.toLowerCase().includes('admin') ? 'admin' : 'comum';
-};
 
 const mapApiUserToUsuario = (user: ApiUser): Usuario => ({
   id: user.id,
   nome: user.name,
   login: user.username,
-  perfil: profileToRole(user.profile?.name),
+  perfil: getRoleByProfileId(user.profileId ?? user.profile?.id),
   status: user.active ? 'ativo' : 'inativo',
 });
 
@@ -140,14 +150,15 @@ export default function Usuarios() {
   const [pagination, setPagination] = useState<UsuariosPagination>(DEFAULT_PAGINATION);
   const [summary, setSummary] = useState<UsuariosSummary>(DEFAULT_SUMMARY);
   const scrollToPaginationBottomRef = useRef(false);
+  const fetchUsersRequestRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement>(null);
 
   const adminProfileId = useMemo(() => {
-    return profiles.find((profile) => profile.name.toLowerCase().includes('admin'))?.id ?? null;
+    return profiles.find((profile) => Number(profile.id) === PROFILE_IDS.ADMIN)?.id ?? PROFILE_IDS.ADMIN;
   }, [profiles]);
 
-  const commonProfileId = useMemo(() => {
-    return profiles.find((profile) => !profile.name.toLowerCase().includes('admin'))?.id ?? null;
+  const operationalProfileId = useMemo(() => {
+    return profiles.find((profile) => Number(profile.id) === PROFILE_IDS.OPERATIONAL)?.id ?? PROFILE_IDS.OPERATIONAL;
   }, [profiles]);
 
   const authUser = useMemo(() => {
@@ -162,22 +173,20 @@ export default function Usuarios() {
   }, []);
 
   const authUserRole = useMemo(() => {
-    if (authUser?.profile?.name) {
-      return profileToRole(authUser.profile.name);
-    }
+    return getRoleByProfileId(authUser?.profileId ?? authUser?.profile?.id);
+  }, [authUser]);
+  const authUserCanManageUsers = canManageSystem(authUserRole);
 
-    if (authUser?.profileId && authUser.profileId === adminProfileId) {
-      return 'admin';
-    }
+  const activeAdminCount = summary.activeAdmins ?? summary.admins;
+  const activeUserCount = summary.activeUsers ?? summary.ativos;
 
-    return 'comum';
-  }, [adminProfileId, authUser]);
+  const isCurrentUser = (usuarioId?: number | null) => Number(authUser?.id) === Number(usuarioId);
 
-  const getProfileIdByRole = (role: 'admin' | 'comum') => {
+  const getProfileIdByRole = (role: 'admin' | 'operational') => {
     if (role === 'admin') {
-      return adminProfileId ?? commonProfileId;
+      return adminProfileId ?? operationalProfileId;
     }
-    return commonProfileId ?? adminProfileId;
+    return operationalProfileId ?? adminProfileId;
   };
 
   const getAuthHeaders = () => {
@@ -193,7 +202,43 @@ export default function Usuarios() {
   };
 
   const fetchUsers = async () => {
+    const requestId = fetchUsersRequestRef.current + 1;
+    fetchUsersRequestRef.current = requestId;
     setIsLoading(true);
+
+    if (!authUserCanManageUsers && authUser?.id) {
+      const response = await fetch(`${getApiBaseUrl()}/api/users/${authUser.id}`, {
+        headers: getAuthHeaders(),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao carregar sua conta.');
+      }
+
+      const usuario = mapApiUserToUsuario(result.data as ApiUser);
+      const ownUsers =
+        !debouncedSearchTerm ||
+        usuario.nome.toLowerCase().includes(debouncedSearchTerm) ||
+        usuario.login.toLowerCase().includes(debouncedSearchTerm) ||
+        usuario.perfil.toLowerCase().includes(debouncedSearchTerm)
+          ? [usuario]
+          : [];
+
+      if (requestId !== fetchUsersRequestRef.current) return;
+
+      setUsuarios(ownUsers);
+      setPagination({
+        page: 1,
+        limit: registrosPorPagina,
+        total: ownUsers.length,
+        totalPages: 1,
+      });
+      setSummary(calculateUsuariosSummary(ownUsers));
+      setIsLoading(false);
+      return;
+    }
+
     const params = new URLSearchParams({
       page: String(currentPage),
       limit: String(registrosPorPagina),
@@ -216,7 +261,8 @@ export default function Usuarios() {
 
     const responseData = result.data as UsuariosPaginatedResponse | ApiUser[];
     const isLegacyArrayResponse = Array.isArray(responseData);
-    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiUserToUsuario) : [];
+    const isVisibleUsuario = (usuario: Usuario) => authUserRole === 'super_admin' || usuario.perfil !== 'super_admin';
+    const legacyItems = isLegacyArrayResponse ? responseData.map(mapApiUserToUsuario).filter(isVisibleUsuario) : [];
     const legacyFilteredItems = legacyItems.filter(
       (usuario) =>
         !debouncedSearchTerm ||
@@ -224,12 +270,18 @@ export default function Usuarios() {
         usuario.login.toLowerCase().includes(debouncedSearchTerm) ||
         usuario.perfil.toLowerCase().includes(debouncedSearchTerm),
     );
-    const legacySortedItems = [...legacyFilteredItems].sort((a, b) => {
+    const sortSuperAdminFirst = (items: Usuario[]) =>
+      [...items].sort((a, b) => {
+        if (a.perfil === 'super_admin' && b.perfil !== 'super_admin') return -1;
+        if (a.perfil !== 'super_admin' && b.perfil === 'super_admin') return 1;
+        return 0;
+      });
+    const legacySortedItems = sortSuperAdminFirst([...legacyFilteredItems].sort((a, b) => {
       if (!sortColumn) return 0;
       const aValue = String(a[sortColumn]);
       const bValue = String(b[sortColumn]);
       return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    });
+    }));
     const legacyStartIndex = (currentPage - 1) * registrosPorPagina;
     const legacyPaginatedItems = legacySortedItems.slice(legacyStartIndex, legacyStartIndex + registrosPorPagina);
     const legacyPagination = {
@@ -239,11 +291,48 @@ export default function Usuarios() {
       totalPages: Math.max(1, Math.ceil(legacyFilteredItems.length / registrosPorPagina)),
     };
     const apiItems = isLegacyArrayResponse ? legacyPaginatedItems : responseData?.items || [];
-    const mappedUsers = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiUserToUsuario);
+    let mappedUsers = sortSuperAdminFirst((isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map(mapApiUserToUsuario)).filter(isVisibleUsuario));
+    let pinnedSuperAdmin: Usuario | null = null;
+
+    if (authUserRole === 'super_admin' && authUser?.id) {
+      const superAdminResponse = await fetch(`${getApiBaseUrl()}/api/users/${authUser.id}`, {
+        headers: getAuthHeaders(),
+      });
+      const superAdminResult = await superAdminResponse.json();
+
+      if (superAdminResponse.ok && superAdminResult?.success) {
+        pinnedSuperAdmin = mapApiUserToUsuario(superAdminResult.data as ApiUser);
+      }
+    }
+
+    const pinnedSuperAdminMatchesSearch =
+      pinnedSuperAdmin &&
+      (!debouncedSearchTerm ||
+        pinnedSuperAdmin.nome.toLowerCase().includes(debouncedSearchTerm) ||
+        pinnedSuperAdmin.login.toLowerCase().includes(debouncedSearchTerm) ||
+        pinnedSuperAdmin.perfil.toLowerCase().includes(debouncedSearchTerm));
+
+    if (pinnedSuperAdmin && pinnedSuperAdminMatchesSearch) {
+      mappedUsers = [
+        pinnedSuperAdmin,
+        ...mappedUsers.filter((usuario) => usuario.id !== pinnedSuperAdmin.id),
+      ];
+    }
+    const hiddenUsersOnPage = apiItems.length - mappedUsers.length;
+    const apiTotal = responseData?.pagination?.total || mappedUsers.length;
+    const visiblePagination = isLegacyArrayResponse
+      ? legacyPagination
+      : {
+          ...(responseData?.pagination || DEFAULT_PAGINATION),
+          total: Math.max(0, apiTotal - hiddenUsersOnPage),
+          totalPages: Math.max(1, Math.ceil(Math.max(0, apiTotal - hiddenUsersOnPage) / registrosPorPagina)),
+        };
+
+    if (requestId !== fetchUsersRequestRef.current) return;
 
     setUsuarios(mappedUsers);
-    setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
-    setSummary(isLegacyArrayResponse ? calculateUsuariosSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
+    setPagination(visiblePagination);
+    setSummary(isLegacyArrayResponse ? calculateUsuariosSummary(legacyFilteredItems) : calculateUsuariosSummary(mappedUsers));
     setIsLoading(false);
   };
 
@@ -277,7 +366,7 @@ export default function Usuarios() {
       setIsLoading(false);
       toast.error(error instanceof Error ? error.message : 'Erro ao carregar usuários.');
     });
-  }, [currentPage, registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection]);
+  }, [currentPage, registrosPorPagina, debouncedSearchTerm, sortColumn, sortDirection, authUserCanManageUsers, authUser?.id]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -315,6 +404,7 @@ export default function Usuarios() {
 
   const handleRegistrosPorPaginaChange = (value: string) => {
     scrollToPaginationBottomAfterLoad();
+    setCurrentPage(1);
     setRegistrosPorPagina(Number(value));
   };
 
@@ -340,11 +430,20 @@ export default function Usuarios() {
   };
 
   const getPerfilBadge = (perfil: string) => {
+    if (perfil === 'super_admin') {
+      return (
+        <Badge className="bg-cyan-50 text-cyan-700 border border-cyan-200 dark:border-[#334b5f] dark:bg-[#273447] dark:text-[#9edcf2]">
+          <Shield className="w-3 h-3 mr-1" />
+          Super Admin
+        </Badge>
+      );
+    }
+
     if (perfil === 'admin') {
       return (
         <Badge className="bg-yellow-100 text-yellow-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#f6d365]">
           <Shield className="w-3 h-3 mr-1" />
-          Admin
+          Administrador
         </Badge>
       );
     }
@@ -352,7 +451,7 @@ export default function Usuarios() {
     return (
       <Badge className="bg-gray-100 text-slate-500 dark:border-[#2f394a] dark:bg-[#273447] dark:text-zinc-400">
         <User className="w-3 h-3 mr-1" />
-        Comum
+        Operacional
       </Badge>
     );
   };
@@ -380,19 +479,41 @@ export default function Usuarios() {
       .toUpperCase()
       .slice(0, 2);
 
+  const ensureCanManageUsers = () => {
+    if (!authUserCanManageUsers) {
+      toast.error('Apenas usuários administradores podem gerenciar usuários.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const canEditUsuario = (usuario: Usuario) => authUserCanManageUsers || isCurrentUser(usuario.id);
+  const isSuperAdminSelfEdit = Boolean(editingUsuario?.perfil === 'super_admin' && isCurrentUser(editingUsuario.id));
+  const isOwnLimitedEdit = Boolean((!authUserCanManageUsers || isSuperAdminSelfEdit) && editingUsuario && isCurrentUser(editingUsuario.id));
+
   const openCreateDialog = () => {
+    if (!ensureCanManageUsers()) {
+      return;
+    }
+
     setEditingUsuario(null);
     setFormData(DEFAULT_FORM);
     setDialogOpen(true);
   };
 
   const handleEdit = (usuario: Usuario) => {
+    if (!canEditUsuario(usuario)) {
+      toast.error('Usuário operacional pode alterar apenas a própria conta.');
+      return;
+    }
+
     setEditingUsuario(usuario);
     setFormData({
       nome: usuario.nome,
       login: usuario.login,
       senha: '',
-      perfil: usuario.perfil,
+      perfil: usuario.perfil === 'admin' ? 'admin' : 'operational',
       ativo: usuario.status === 'ativo',
     });
     setDialogOpen(true);
@@ -401,17 +522,21 @@ export default function Usuarios() {
   const handleDelete = async (id: number) => {
     const usuario = usuarios.find((item) => item.id === id);
 
-    if (authUserRole !== 'admin') {
-      toast.error('Apenas usuários administradores podem remover usuários.');
+    if (!ensureCanManageUsers()) {
       return;
     }
 
-    if (usuario?.perfil === 'admin' && Number(authUser?.id) === Number(usuario.id)) {
-      toast.error('Usuário administrador não pode remover a si mesmo.');
+    if (isCurrentUser(usuario?.id)) {
+      toast.error('Usuário não pode remover a si mesmo.');
       return;
     }
 
-    if (usuario?.perfil === 'admin' && summary.admins <= 1) {
+    if (usuario?.status === 'ativo' && activeUserCount <= 1) {
+      toast.error('Não é possível remover o único usuário ativo do sistema.');
+      return;
+    }
+
+    if (usuario?.perfil === 'admin' && usuario.status === 'ativo' && activeAdminCount <= 1) {
       toast.error('Não é possível remover o único usuário administrador ativo.');
       return;
     }
@@ -449,19 +574,73 @@ export default function Usuarios() {
     setFormData(DEFAULT_FORM);
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open && editingUsuario && !canEditUsuario(editingUsuario)) {
+      toast.error('Usuário operacional pode alterar apenas a própria conta.');
+      return;
+    }
+
+    if (open && !editingUsuario && !ensureCanManageUsers()) {
+      return;
+    }
+
+    if (!open) {
+      handleCloseDialog();
+      return;
+    }
+
+    setDialogOpen(true);
+  };
+
   const saveUsuario = async () => {
     if (!formData.nome.trim() || !formData.login.trim() || (!editingUsuario && !formData.senha)) {
       toast.error('Preencha os campos obrigatórios.');
       return;
     }
 
-    if (editingUsuario?.perfil === 'admin' && Number(authUser?.id) === Number(editingUsuario.id) && !formData.ativo) {
-      toast.error('Usuário administrador não pode inativar a si mesmo.');
+    if (!editingUsuario && !ensureCanManageUsers()) {
+      return;
+    }
+
+    if (editingUsuario && !canEditUsuario(editingUsuario)) {
+      toast.error('Usuário operacional pode alterar apenas a própria conta.');
+      return;
+    }
+
+    const isLimitedSelfUpdate = Boolean(editingUsuario && (!authUserCanManageUsers || editingUsuario.perfil === 'super_admin') && isCurrentUser(editingUsuario.id));
+
+    if (isLimitedSelfUpdate && formData.perfil !== editingUsuario!.perfil) {
+      toast.error('Usuário operacional não pode alterar o próprio perfil.');
+      return;
+    }
+
+    if (isLimitedSelfUpdate && formData.ativo !== (editingUsuario!.status === 'ativo')) {
+      toast.error('Usuário operacional não pode alterar o próprio status.');
+      return;
+    }
+
+    if (editingUsuario && isCurrentUser(editingUsuario.id) && !formData.ativo) {
+      toast.error('Usuário não pode inativar a si mesmo.');
+      return;
+    }
+
+    if (
+      editingUsuario?.status === 'ativo' &&
+      editingUsuario.perfil === 'admin' &&
+      (formData.perfil !== 'admin' || !formData.ativo) &&
+      activeAdminCount <= 1
+    ) {
+      toast.error('Não é possível inativar ou alterar para operacional o único usuário administrador ativo.');
+      return;
+    }
+
+    if (editingUsuario?.status === 'ativo' && !formData.ativo && activeUserCount <= 1) {
+      toast.error('Não é possível inativar o único usuário ativo do sistema.');
       return;
     }
 
     const selectedProfileId = getProfileIdByRole(formData.perfil);
-    if (!selectedProfileId) {
+    if (!isLimitedSelfUpdate && !selectedProfileId) {
       toast.error('Nenhum perfil encontrado para salvar este usuário.');
       return;
     }
@@ -469,12 +648,14 @@ export default function Usuarios() {
     setIsSaving(true);
 
     try {
-      const payload: Record<string, unknown> = {
-        name: formData.nome.trim(),
-        username: formData.login.trim(),
-        active: formData.ativo ? 1 : 0,
-        profileId: selectedProfileId,
-      };
+      const payload: Record<string, unknown> = isLimitedSelfUpdate
+        ? { name: formData.nome.trim() }
+        : {
+            name: formData.nome.trim(),
+            username: formData.login.trim(),
+            active: formData.ativo ? 1 : 0,
+            profileId: selectedProfileId,
+          };
 
       if (formData.senha.trim()) {
         payload.password = formData.senha.trim();
@@ -505,7 +686,15 @@ export default function Usuarios() {
     }
   };
 
-  const sortedUsuarios = usuarios;
+  const sortedUsuarios = useMemo(
+    () =>
+      [...usuarios].sort((a, b) => {
+        if (a.perfil === 'super_admin' && b.perfil !== 'super_admin') return -1;
+        if (a.perfil !== 'super_admin' && b.perfil === 'super_admin') return 1;
+        return 0;
+      }),
+    [usuarios],
+  );
   const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
   const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
   const visiblePageWindow = 5;
@@ -559,11 +748,11 @@ export default function Usuarios() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-gray-600">Comuns</CardTitle>
+            <CardTitle className="text-gray-600">Operacionais</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-blue-600 dark:text-zinc-400">{summary.comuns}</div>
-            <p className="text-gray-500">usuários comuns</p>
+            <p className="text-gray-500">usuários operacionais</p>
           </CardContent>
         </Card>
       </div>
@@ -580,18 +769,24 @@ export default function Usuarios() {
                 className="pl-10"
               />
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
+              {authUserCanManageUsers && (
                 <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={openCreateDialog}>
                   <Plus className="w-4 h-4 mr-2 dark:text-[#8bd8b1]" />
                   Novo Usuário
                 </Button>
-              </DialogTrigger>
+              )}
               <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
                 <DialogHeader>
-                  <DialogTitle className="dark:text-slate-100">{editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
+                  <DialogTitle className="dark:text-slate-100">
+                    {isOwnLimitedEdit ? 'Minha Conta' : editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}
+                  </DialogTitle>
                   <DialogDescription className="dark:text-slate-400">
-                    {editingUsuario ? 'Altere as informações do usuário' : 'Cadastre um novo usuário no sistema'}
+                    {isOwnLimitedEdit
+                      ? 'Altere seu nome ou sua senha'
+                      : editingUsuario
+                        ? 'Altere as informações do usuário'
+                        : 'Cadastre um novo usuário no sistema'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -616,6 +811,7 @@ export default function Usuarios() {
                       placeholder="usuario"
                       value={formData.login}
                       onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
+                      disabled={isOwnLimitedEdit}
                       className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                     />
                   </div>
@@ -636,24 +832,29 @@ export default function Usuarios() {
                     <Label htmlFor="perfil" className="dark:text-slate-300">
                       Perfil de Acesso
                     </Label>
-                    <Select value={formData.perfil} onValueChange={(value: 'admin' | 'comum') => setFormData((prev) => ({ ...prev, perfil: value }))}>
+                    <Select
+                      value={formData.perfil}
+                      disabled={isOwnLimitedEdit}
+                      onValueChange={(value: 'admin' | 'operational') => setFormData((prev) => ({ ...prev, perfil: value }))}
+                    >
                       <SelectTrigger
                         id="perfil"
-                        className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                        className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                       >
                         <SelectValue placeholder="Selecione o perfil" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin" className="cursor-pointer dark:text-slate-100">Admin - Acesso Total</SelectItem>
-                        <SelectItem value="comum" className="cursor-pointer dark:text-slate-100">Comum - Acesso Operacional</SelectItem>
+                        <SelectItem value="admin" className="cursor-pointer dark:text-slate-100">Administrador - Acesso Total</SelectItem>
+                        <SelectItem value="operational" className="cursor-pointer dark:text-slate-100">Operacional - Acesso ao Sistema</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center gap-3">
                     <Switch
                       id="ativo"
-                      className="cursor-pointer"
+                      className="cursor-pointer disabled:cursor-not-allowed"
                       checked={formData.ativo}
+                      disabled={isOwnLimitedEdit}
                       onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
                     />
                     <Label
@@ -724,7 +925,11 @@ export default function Usuarios() {
                   </TableRow>
                 )}
                 {(!isLoading || sortedUsuarios.length > 0) &&
-                  sortedUsuarios.map((usuario) => (
+                  sortedUsuarios.map((usuario) => {
+                    const canShowActions = authUserCanManageUsers || isCurrentUser(usuario.id);
+                    const canShowDelete = authUserCanManageUsers && usuario.perfil !== 'super_admin';
+
+                    return (
                     <TableRow key={usuario.id} className="dark:hover:bg-[#273447]/70">
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -742,26 +947,33 @@ export default function Usuarios() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleViewDetails(usuario)} title="Visualizar">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(usuario)} title="Editar">
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(usuario.id)}
-                            className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        {canShowActions ? (
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleViewDetails(usuario)} title="Visualizar">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(usuario)} title="Editar">
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            {canShowDelete && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(usuario.id)}
+                                className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400 dark:text-slate-500">-</span>
+                        )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
               </TableBody>
             </Table>
           </div>
@@ -927,7 +1139,11 @@ export default function Usuarios() {
                 <p className="text-blue-900 dark:text-[#7fb7e8]">
                   <strong>Permissões:</strong>
                   <br />
-                  {selectedUsuario.perfil === 'admin' ? <>• Acesso total ao sistema</> : <>• Acesso operacional financeiro</>}
+                  {selectedUsuario.perfil === 'super_admin'
+                    ? <>• Acesso técnico total ao sistema</>
+                    : selectedUsuario.perfil === 'admin'
+                      ? <>• Acesso total ao sistema</>
+                      : <>• Acesso operacional financeiro</>}
                 </p>
               </div>
             </div>

@@ -2295,19 +2295,19 @@ export default function Relatorios() {
         <button
           type="button"
           onClick={() => setMacroRelatorio('contas')}
-          className={`text-left rounded-lg border p-5 transition-all cursor-pointer ${
+          className={`group text-left rounded-lg border p-5 transition-all duration-200 cursor-pointer ${
             macroRelatorio === 'contas'
               ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 dark:border-[#075985] dark:bg-[#243043] dark:ring-[#075985]/40'
-              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#3b4658] dark:hover:bg-[#243043]'
+              : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#5b93d6] dark:hover:bg-[#20344e] dark:hover:ring-1 dark:hover:ring-[#5b93d6]/30 dark:hover:shadow-lg'
           }`}
           aria-pressed={macroRelatorio === 'contas'}
         >
           <div className="flex items-start gap-3">
             <div
-              className={`mt-0.5 rounded-md p-2 ${
+              className={`mt-0.5 rounded-md p-2 transition-colors duration-200 ${
                 macroRelatorio === 'contas'
                   ? 'bg-blue-100 text-blue-700 dark:bg-[#273447] dark:text-[#8ab4f8]'
-                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400 dark:group-hover:bg-[#2a4260]'
               }`}
             >
               <FileText className="w-5 h-5" />
@@ -2322,19 +2322,19 @@ export default function Relatorios() {
         <button
           type="button"
           onClick={() => setMacroRelatorio('movimentos')}
-          className={`text-left rounded-lg border p-5 transition-all cursor-pointer ${
+          className={`group text-left rounded-lg border p-5 transition-all duration-200 cursor-pointer ${
             macroRelatorio === 'movimentos'
               ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200 dark:border-[#075985] dark:bg-[#243043] dark:ring-[#075985]/40'
-              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#3b4658] dark:hover:bg-[#243043]'
+              : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:hover:border-[#5b93d6] dark:hover:bg-[#20344e] dark:hover:ring-1 dark:hover:ring-[#5b93d6]/30 dark:hover:shadow-lg'
           }`}
           aria-pressed={macroRelatorio === 'movimentos'}
         >
           <div className="flex items-start gap-3">
             <div
-              className={`mt-0.5 rounded-md p-2 ${
+              className={`mt-0.5 rounded-md p-2 transition-colors duration-200 ${
                 macroRelatorio === 'movimentos'
                   ? 'bg-blue-100 text-blue-700 dark:bg-[#273447] dark:text-[#8ab4f8]'
-                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-[#273447] dark:text-slate-400 dark:group-hover:bg-[#2a4260]'
               }`}
             >
               <TrendingUp className="w-5 h-5" />
