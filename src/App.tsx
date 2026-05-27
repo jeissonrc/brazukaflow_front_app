@@ -1,7 +1,7 @@
 import { toast } from 'sonner@2.0.3';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState } from 'react';
-import { Home as HomeIcon, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut } from 'lucide-react';
+import { Home as HomeIcon, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Switch } from './components/ui/switch';
 import Home from './components/Home';
@@ -15,13 +15,14 @@ import PlanoContas from './components/PlanoContas';
 import TiposPagamento from './components/TiposPagamento';
 import Usuarios from './components/Usuarios';
 import Relatorios from './components/Relatorios';
+import Auditoria from './components/Auditoria';
 import Login from './components/Login';
 import TiposContas from './components/TiposContas';
 import Categorias from './components/Categorias';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './lib/auth';
 import { canManageSystem, getRoleByProfileId } from './lib/profileRoles';
 
-type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'usuarios' | 'tipos-contas' | 'categorias';
+type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'auditoria' | 'usuarios' | 'tipos-contas' | 'categorias';
 
 const THEME_STORAGE_KEY = 'brazukaflow.theme';
 
@@ -110,6 +111,9 @@ export default function App() {
         ]
       : []),
     { id: 'relatorios' as MenuOption, label: 'Relatórios', icon: FileText },
+    ...(authUserRole === 'super_admin'
+      ? [{ id: 'auditoria' as MenuOption, label: 'Auditoria', icon: ShieldCheck }]
+      : []),
     { id: 'usuarios' as MenuOption, label: authUserCanManageSystem ? 'Usuários' : 'Minha Conta', icon: Users },
   ];
 
@@ -144,6 +148,8 @@ export default function App() {
         return <TiposPagamento />;
       case 'relatorios':
         return <Relatorios />;
+      case 'auditoria':
+        return <Auditoria />;
       case 'usuarios':
         return <Usuarios />;
       case 'tipos-contas':

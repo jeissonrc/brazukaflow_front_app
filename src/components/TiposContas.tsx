@@ -48,6 +48,8 @@ type TipoConta = {
   status: 'Ativo' | 'Inativo';
 };
 
+type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
+
 type TiposContasPagination = {
   page: number;
   limit: number;
@@ -489,21 +491,24 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   const sortedTipos = filteredTipos;
   const primeiroRegistro = pagination.total > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0;
   const ultimoRegistro = Math.min(pagination.page * pagination.limit, pagination.total);
-  const visiblePageWindow = 5;
-  const halfVisiblePageWindow = Math.floor(visiblePageWindow / 2);
-  const middleStartPage = Math.max(
-    1,
-    Math.min(
-      pagination.page - halfVisiblePageWindow,
-      pagination.totalPages - visiblePageWindow + 1,
-    ),
-  );
-  const middleEndPage = Math.min(pagination.totalPages, middleStartPage + visiblePageWindow - 1);
-  const paginas = Array.from({ length: Math.max(0, middleEndPage - middleStartPage + 1) }, (_, index) => middleStartPage + index);
-  const showFirstPageShortcut = middleStartPage > 1;
-  const showLeadingEllipsis = middleStartPage > 2;
-  const showTrailingEllipsis = middleEndPage < pagination.totalPages - 1;
-  const showLastPageShortcut = middleEndPage < pagination.totalPages;
+  const paginationItems: PaginationItem[] = (() => {
+    const totalPages = pagination.totalPages;
+    const currentPage = pagination.page;
+
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, 'end-ellipsis', totalPages];
+    }
+
+    if (currentPage >= totalPages - 2) {
+      return [1, 'start-ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+
+    return [1, 'start-ellipsis', currentPage - 1, currentPage, currentPage + 1, 'end-ellipsis', totalPages];
+  })();
 
   return (
     <div className="space-y-6">
@@ -548,7 +553,7 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
       {/* Header */}
       <Card>
-        <CardHeader>
+        <CardHeader className="py-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Button 
@@ -861,41 +866,21 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
               >
                 Anterior
               </Button>
-              {showFirstPageShortcut && (
-                <Button
-                  variant={pagination.page === 1 ? 'default' : 'outline'}
-                  size="sm"
-                  className={pagination.page === 1 ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
-                  onClick={() => handlePageChange(1)}
-                  disabled={isLoading}
-                >
-                  1
-                </Button>
-              )}
-              {showLeadingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
-              {paginas.map((page) => (
-                <Button
-                  key={page}
-                  variant={pagination.page === page ? 'default' : 'outline'}
-                  size="sm"
-                  className={pagination.page === page ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
-                  onClick={() => handlePageChange(page)}
-                  disabled={isLoading}
-                >
-                  {page}
-                </Button>
-              ))}
-              {showTrailingEllipsis && <span className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>}
-              {showLastPageShortcut && (
-                <Button
-                  variant={pagination.page === pagination.totalPages ? 'default' : 'outline'}
-                  size="sm"
-                  className={pagination.page === pagination.totalPages ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
-                  onClick={() => handlePageChange(pagination.totalPages)}
-                  disabled={isLoading}
-                >
-                  {pagination.totalPages}
-                </Button>
+              {paginationItems.map((item) =>
+                typeof item === 'number' ? (
+                  <Button
+                    key={item}
+                    variant={pagination.page === item ? 'default' : 'outline'}
+                    size="sm"
+                    className={pagination.page === item ? 'cursor-pointer bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white' : 'cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]'}
+                    onClick={() => handlePageChange(item)}
+                    disabled={isLoading}
+                  >
+                    {item}
+                  </Button>
+                ) : (
+                  <span key={item} className="px-1 text-sm text-gray-500 dark:text-slate-400">...</span>
+                ),
               )}
               <Button
                 variant="outline"

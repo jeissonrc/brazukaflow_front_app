@@ -179,7 +179,7 @@ export default function PlanoContas({ onNavigateToTipos }: { onNavigateToTipos: 
     <div className="space-y-6">
       {/* Header com botão de gerenciar tipos */}
       <Card>
-        <CardHeader>
+        <CardHeader className="py-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2 dark:text-slate-100">
