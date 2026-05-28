@@ -623,6 +623,20 @@ export default function ContasReceber() {
     setOriginDialogOpen(true);
   };
 
+  const hasNonStatusFormChanges = (conta: ContaReceber) => {
+    const valor = parseCurrencyInput(formData.valor);
+
+    return (
+      conta.descricao.trim() !== formData.descricao.trim() ||
+      String(conta.accountTypeId || '') !== formData.accountTypeId ||
+      String(conta.paymentTypeId || '') !== formData.paymentTypeId ||
+      conta.dataNominal !== formData.dataNominal ||
+      conta.dataVencimento !== formData.dataVencimento ||
+      (conta.numeroDoc || '').trim() !== formData.numeroDoc.trim() ||
+      Math.abs(Number(conta.valor || 0) - valor) > 0.009
+    );
+  };
+
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingConta(null);
@@ -660,6 +674,9 @@ export default function ContasReceber() {
 
     try {
       const isEditing = Boolean(editingConta);
+      const hasOtherChanges = isEditing ? hasNonStatusFormChanges(editingConta!) : true;
+      const shouldSaveBaseData = !isEditing || hasOtherChanges;
+      const shouldSkipStatusAudit = !isEditing || hasOtherChanges;
       const endpoint = isEditing ? `${getApiBaseUrl()}/api/accounts-receivable/${editingConta!.id}` : `${getApiBaseUrl()}/api/accounts-receivable`;
       const method = isEditing ? 'PUT' : 'POST';
 
@@ -670,34 +687,35 @@ export default function ContasReceber() {
         nominalDate: formData.dataNominal,
         dueDate: formData.dataVencimento,
         value: valor,
+        paid: formData.status === 'recebido',
       };
-
-      if (!isEditing) {
-        payload.paid = false;
-      }
 
       if (formData.numeroDoc.trim()) {
         payload.documentNumber = formData.numeroDoc.trim();
       }
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-      const result = await response.json();
+      let savedContaId = editingConta?.id;
 
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Erro ao salvar conta a receber.');
+      if (shouldSaveBaseData) {
+        const response = await fetch(endpoint, {
+          method,
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Erro ao salvar conta a receber.');
+        }
+
+        savedContaId = isEditing ? editingConta!.id : (result.data as ApiAccountsReceivable).id;
       }
 
-      const savedContaId = isEditing ? editingConta!.id : (result.data as ApiAccountsReceivable).id;
-
-      if (isEditing && editingConta!.status === 'recebido' && formData.status !== 'recebido') {
+      if (!shouldSaveBaseData && isEditing && editingConta!.status === 'recebido' && formData.status !== 'recebido') {
         const unreceiveResponse = await fetch(`${getApiBaseUrl()}/api/accounts-receivable/${savedContaId}/unreceive`, {
           method: 'PUT',
           headers: getAuthHeaders(),
-          body: JSON.stringify({}),
+          body: JSON.stringify({ skipAudit: shouldSkipStatusAudit }),
         });
         const unreceiveResult = await unreceiveResponse.json();
 
@@ -706,8 +724,11 @@ export default function ContasReceber() {
         }
       }
 
-      if (formData.status === 'recebido' && (!isEditing || editingConta!.status !== 'recebido')) {
-        const payPayload = formData.paymentTypeId ? { paymentTypeId: Number(formData.paymentTypeId) } : {};
+      if (!shouldSaveBaseData && formData.status === 'recebido' && (!isEditing || editingConta!.status !== 'recebido')) {
+        const payPayload = {
+          ...(formData.paymentTypeId ? { paymentTypeId: Number(formData.paymentTypeId) } : {}),
+          skipAudit: shouldSkipStatusAudit,
+        };
         const payResponse = await fetch(`${getApiBaseUrl()}/api/accounts-receivable/${savedContaId}/receive`, {
           method: 'PUT',
           headers: getAuthHeaders(),

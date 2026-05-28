@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Filter, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Eye, Filter, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { AUTH_TOKEN_KEY } from '../lib/auth';
 import { Badge } from './ui/badge';
@@ -59,6 +59,10 @@ type FilterOptions = {
 type SortColumn = 'dataHora' | 'login' | 'perfil' | 'acao' | 'modulo' | 'status' | 'ip';
 type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
 
+type AuditoriaProps = {
+  onBack?: () => void;
+};
+
 const DEFAULT_FILTERS: Filters = {
   startDate: '',
   endDate: '',
@@ -82,10 +86,47 @@ const DEFAULT_FILTER_OPTIONS: FilterOptions = {
     { value: 'CADASTRO', label: 'Cadastro' },
     { value: 'ALTERACAO', label: 'Alteração' },
     { value: 'EXCLUSAO', label: 'Exclusão' },
-    { value: 'INATIVACAO', label: 'Inativação' },
   ],
   users: [],
   modules: [],
+};
+
+const BASE_ACTION_OPTIONS: FilterOption[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'CADASTRO', label: 'Cadastro' },
+  { value: 'ALTERACAO', label: 'Alteração' },
+  { value: 'EXCLUSAO', label: 'Exclusão' },
+];
+
+const LOGIN_ACTION_OPTION: FilterOption = { value: 'LOGIN', label: 'Login' };
+const ACTIVATION_ACTION_OPTION: FilterOption = { value: 'ATIVACAO_INATIVACAO', label: 'Ativação/Inativação' };
+const FINANCIAL_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_FINANCEIRO', label: 'Status Financeiro' };
+const PAYABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_PAGAMENTO', label: 'Status Pago/Não Pago' };
+const RECEIVABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_RECEBIMENTO', label: 'Status Recebido/Não Recebido' };
+const ACTIVATION_MODULES = new Set(['USUARIOS', 'TIPOS_PAGAMENTO', 'PLANO_CONTAS']);
+
+const getActionOptionsForModule = (module: string): FilterOption[] => {
+  if (module === 'todos') {
+    return [{ value: 'todos', label: 'Todos' }, LOGIN_ACTION_OPTION, ...BASE_ACTION_OPTIONS.slice(1), ACTIVATION_ACTION_OPTION, FINANCIAL_STATUS_ACTION_OPTION];
+  }
+
+  if (module === 'LOGIN') {
+    return [{ value: 'todos', label: 'Todos' }, LOGIN_ACTION_OPTION];
+  }
+
+  if (module === 'CONTAS_PAGAR') {
+    return [...BASE_ACTION_OPTIONS, PAYABLE_STATUS_ACTION_OPTION];
+  }
+
+  if (module === 'CONTAS_RECEBER') {
+    return [...BASE_ACTION_OPTIONS, RECEIVABLE_STATUS_ACTION_OPTION];
+  }
+
+  if (ACTIVATION_MODULES.has(module)) {
+    return [...BASE_ACTION_OPTIONS, ACTIVATION_ACTION_OPTION];
+  }
+
+  return BASE_ACTION_OPTIONS;
 };
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
@@ -141,6 +182,8 @@ const formatModuleLabel = (value: string) => {
     LOGIN: 'Login',
     USUARIOS: 'Usuários',
     PLANO_CONTAS: 'Plano de Contas',
+    PLANO_CONTAS_TIPOS: 'Plano Contas > Tipos',
+    PLANO_CONTAS_CATEGORIAS: 'Plano Contas > Categorias',
     TIPOS_PAGAMENTO: 'Tipos de Pagamento',
     TIPOS_CONTAS: 'Plano de Contas',
     CATEGORIAS_TIPOS_CONTAS: 'Plano de Contas',
@@ -168,6 +211,11 @@ const getActionLabel = (value: string | null) => {
   if (value.includes('CREATE') || value.includes('CADASTRO')) return 'Cadastro';
   if (value.includes('DELETE') || value.includes('REMOVE') || value.includes('EXCLUSAO') || value.includes('EXCLUSÃO')) return 'Exclusão';
   if (value.includes('INACTIVE') || value.includes('INATIV') || value.includes('DESATIV')) return 'Inativação';
+  if (value.includes('ATIVACAO') || value.includes('ATIVAÇÃO') || value.includes('REATIV')) return 'Ativação';
+  if (value.includes('DESPAGAMENTO')) return 'Status > Não Pago';
+  if (value.includes('PAGAMENTO')) return 'Status > Pago';
+  if (value.includes('DESRECEBIMENTO')) return 'Status > Não Recebido';
+  if (value.includes('RECEBIMENTO')) return 'Status > Recebido';
   if (value.includes('UPDATE') || value.includes('ALTER')) return 'Alteração';
 
   return value;
@@ -185,7 +233,7 @@ const getStatusBadge = (status: string | null) => {
   return <Badge className="bg-gray-100 text-slate-600 dark:border-[#2f394a] dark:bg-[#273447] dark:text-slate-300">{status || '-'}</Badge>;
 };
 
-export default function Auditoria() {
+export default function Auditoria({ onBack }: AuditoriaProps) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -224,6 +272,7 @@ export default function Auditoria() {
     () => new Set(filterOptions.users.map((user) => user.value)),
     [filterOptions.users],
   );
+  const actionOptions = useMemo(() => getActionOptionsForModule(filters.module), [filters.module]);
 
   const fetchLogs = async () => {
     setIsLoading(true);
@@ -335,6 +384,16 @@ export default function Auditoria() {
     setSortDirection('asc');
   };
 
+  const handleModuleChange = (value: string) => {
+    const nextActionOptions = getActionOptionsForModule(value);
+
+    setFilters((prev) => ({
+      ...prev,
+      module: value,
+      action: nextActionOptions.some((action) => action.value === prev.action) ? prev.action : 'todos',
+    }));
+  };
+
   const getSortIcon = (column: SortColumn) => {
     if (sortColumn !== column) {
       return <ArrowUpDown className="ml-1 inline h-4 w-4" />;
@@ -397,12 +456,25 @@ export default function Auditoria() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="py-5">
-          <CardTitle className="flex items-center gap-2 dark:text-slate-100">
-            <ShieldCheck className="w-6 h-6" />
-            Histórico de Ações
-          </CardTitle>
-          <CardDescription className="mt-2 dark:text-slate-400">Logs do Sistema</CardDescription>
+        <CardHeader className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 dark:text-slate-100">
+              <ShieldCheck className="w-6 h-6" />
+              Histórico de Ações
+            </CardTitle>
+            <CardDescription className="mt-2 dark:text-slate-400">Logs do Sistema</CardDescription>
+          </div>
+          {onBack && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onBack}
+              className="w-full cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155] md:w-auto"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar
+            </Button>
+          )}
         </CardHeader>
       </Card>
 
@@ -411,7 +483,7 @@ export default function Auditoria() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
             <div className="space-y-2">
               <Label>Módulo</Label>
-              <Select value={filters.module} onValueChange={(value) => setFilters((prev) => ({ ...prev, module: value }))}>
+              <Select value={filters.module} onValueChange={handleModuleChange}>
                 <SelectTrigger className="cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
@@ -431,7 +503,7 @@ export default function Auditoria() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {filterOptions.actions.map((action) => (
+                  {actionOptions.map((action) => (
                     <SelectItem key={action.value} value={action.value} className="cursor-pointer">
                       {action.label}
                     </SelectItem>

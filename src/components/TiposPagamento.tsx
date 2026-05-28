@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, CreditCard, CheckCircle, XCircle, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
+import { Search, CreditCard, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -591,12 +591,10 @@ export default function TiposPagamento() {
                       <div className="flex items-center gap-2">
                         {tipo.ativo ? (
                           <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">
-                            <CheckCircle className="w-3 h-3 mr-1" />
                             Ativo
                           </Badge>
                         ) : (
-                          <Badge className="bg-gray-100 text-gray-700 dark:bg-[#273447] dark:text-zinc-400">
-                            <XCircle className="w-3 h-3 mr-1" />
+                          <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]">
                             Inativo
                           </Badge>
                         )}
@@ -754,17 +752,15 @@ export default function TiposPagamento() {
                 <div>
                   <Label className="dark:text-slate-300">Status</Label>
                   <div className="mt-1">
-                    {selectedTipo.ativo ? (
-                      <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">
-                        <CheckCircle className="w-3 h-3 mr-1" />
+                  {selectedTipo.ativo ? (
+                    <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#8bd8b1]">
                         Ativo
                       </Badge>
-                    ) : (
-                      <Badge className="bg-gray-100 text-gray-700 dark:bg-[#273447] dark:text-zinc-400">
-                        <XCircle className="w-3 h-3 mr-1" />
+                  ) : (
+                    <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#e7a0a9]">
                         Inativo
                       </Badge>
-                    )}
+                  )}
                   </div>
                 </div>
               </div>
