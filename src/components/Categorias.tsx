@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Filter, Eye, Pencil, Trash2, Folder, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -81,6 +81,13 @@ const calculateCategoriasSummary = (items: Categoria[]): CategoriasSummary =>
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const formatCategoriaId = (id: number) => `CAT-${String(id).padStart(3, '0')}`;
 const isActiveStatus = (status: ApiCategoria['status']) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement | HTMLSelectElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -130,6 +137,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   const [speciesOptions, setSpeciesOptions] = useState<string[]>([]);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
+  const tipoRequiredRef = useRef<HTMLSelectElement>(null);
   
   const [formData, setFormData] = useState({
     idCategoria: '',
@@ -311,6 +319,12 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const showNewestRecordsFirst = () => {
+    setSortColumn('id');
+    setSortDirection('desc');
+    setCurrentPage(1);
+  };
+
   const getSortIcon = (column: keyof Categoria) => {
     if (sortColumn !== column) {
       return <ArrowUpDown className="w-4 h-4 ml-1 inline" />;
@@ -383,7 +397,9 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     if (!formData.descricao.trim() || !formData.tipo || !formData.especie.trim()) {
       toast.error('Preencha os campos obrigatórios.');
       return;
@@ -411,6 +427,10 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
 
       if (!response.ok || !result?.success) {
         throw new Error(result?.error || 'Erro ao salvar categoria.');
+      }
+
+      if (!isEditing) {
+        showNewestRecordsFirst();
       }
 
       toast.success(isEditing ? 'Categoria atualizada com sucesso!' : 'Categoria cadastrada com sucesso!');
@@ -822,85 +842,116 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       {/* Dialog de Cadastro/Edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
-        <DialogHeader>
-            <DialogTitle className="dark:text-slate-100">
-              {editingCategoria ? 'Editar Categoria' : 'Nova Categoria'}
-            </DialogTitle>
-            <DialogDescription className="dark:text-slate-400">
-              {editingCategoria 
-                ? 'Altere as informações da categoria' 
-                : 'Preencha os dados para cadastrar uma nova categoria'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {editingCategoria && (
-              <div className="space-y-2">
-                <Label htmlFor="idCategoria" className="dark:text-slate-300">ID Categoria</Label>
-                <Input
-                  id="idCategoria"
-                  value={formData.idCategoria}
-                  disabled
-                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100"
+          <form onSubmit={handleSave}>
+            <DialogHeader>
+              <DialogTitle className="dark:text-slate-100">
+                {editingCategoria ? 'Editar Categoria' : 'Nova Categoria'}
+              </DialogTitle>
+              <DialogDescription className="dark:text-slate-400">
+                {editingCategoria 
+                  ? 'Altere as informações da categoria' 
+                  : 'Preencha os dados para cadastrar uma nova categoria'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              {editingCategoria && (
+                <div className="space-y-2">
+                  <Label htmlFor="idCategoria" className="dark:text-slate-300">ID Categoria</Label>
+                  <Input
+                    id="idCategoria"
+                    value={formData.idCategoria}
+                    disabled
+                    className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100"
+                  />
+                </div>
+              )}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="descricao" className="dark:text-slate-300">
+                  Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Input 
+                  id="descricao" 
+                  required
+                  placeholder="Nome descritivo da categoria" 
+                  value={formData.descricao}
+                  onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição da categoria.')}
+                  onInput={clearFieldValidity}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
               </div>
-            )}
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="descricao" className="dark:text-slate-300">Descrição</Label>
-              <Input 
-                id="descricao" 
-                placeholder="Nome descritivo da categoria" 
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="tipo" className="dark:text-slate-300">
+                  Tipo <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Select 
+                  value={formData.tipo} 
+                  onValueChange={(value) => {
+                    tipoRequiredRef.current?.setCustomValidity('');
+                    setFormData({ ...formData, tipo: value });
+                  }}
+                >
+                  <SelectTrigger id="tipo" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
+                    <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <select
+                  ref={tipoRequiredRef}
+                  required
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="sr-only"
+                  value={formData.tipo}
+                  onInvalid={(e) => setRequiredMessage(e, 'Selecione o tipo.')}
+                  onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+                >
+                  <option value="">Selecione o tipo</option>
+                  <option value="Receita">Receita</option>
+                  <option value="Despesa">Despesa</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="especie" className="dark:text-slate-300">
+                  Espécie <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Input 
+                  id="especie" 
+                  required
+                  placeholder="Ex: Operacional, Financeira" 
+                  value={formData.especie}
+                  onInvalid={(e) => setRequiredMessage(e, 'Informe a espécie.')}
+                  onInput={clearFieldValidity}
+                  onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
+                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="status"
+                  className="cursor-pointer"
+                  checked={formData.status === 'Ativo'}
+                  onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
+                />
+                <Label htmlFor="status" className="dark:text-slate-300">Ativo</Label>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tipo" className="dark:text-slate-300">Tipo</Label>
-              <Select 
-                value={formData.tipo} 
-                onValueChange={(value) => setFormData({ ...formData, tipo: value })}
+            <DialogFooter>
+              <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit"
+                className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" 
+                disabled={isSaving}
               >
-                <SelectTrigger id="tipo" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
-                  <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="especie" className="dark:text-slate-300">Espécie</Label>
-              <Input 
-                id="especie" 
-                placeholder="Ex: Operacional, Financeira" 
-                value={formData.especie}
-                onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
-                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="status"
-                className="cursor-pointer"
-                checked={formData.status === 'Ativo'}
-                onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
-              />
-              <Label htmlFor="status" className="dark:text-slate-300">Ativo</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" 
-              onClick={handleSave}
-              disabled={isSaving || !formData.descricao || !formData.tipo || !formData.especie}
-            >
-              {isSaving ? 'Salvando...' : editingCategoria ? 'Atualizar' : 'Salvar'}
-            </Button>
-          </DialogFooter>
+                {isSaving ? 'Salvando...' : editingCategoria ? 'Atualizar' : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

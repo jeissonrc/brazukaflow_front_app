@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -181,6 +181,14 @@ const getAuthHeaders = () => {
   };
 };
 
+const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement | HTMLSelectElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
+
 const mapApiIncomeToReceita = (income: ApiIncome): Receita => ({
   id: income.id,
   descricao: income.description || '',
@@ -202,6 +210,8 @@ export default function Receitas() {
   const [cashAccountFiltro, setCashAccountFiltro] = useState('todas');
   const [dataInicioFiltro, setDataInicioFiltro] = useState('');
   const [dataFimFiltro, setDataFimFiltro] = useState('');
+  const [debouncedDataInicioFiltro, setDebouncedDataInicioFiltro] = useState('');
+  const [debouncedDataFimFiltro, setDebouncedDataFimFiltro] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedReceita, setSelectedReceita] = useState<Receita | null>(null);
@@ -217,8 +227,18 @@ export default function Receitas() {
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
   const [pagination, setPagination] = useState<ReceitasPagination>(DEFAULT_PAGINATION);
   const [summary, setSummary] = useState<ReceitasSummary>(DEFAULT_SUMMARY);
+  const cashAccountRequiredRef = useRef<HTMLSelectElement>(null);
+  const accountTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    cashAccountRequiredRef.current?.setCustomValidity('');
+  }, [formData.cashAccountId]);
+
+  useEffect(() => {
+    accountTypeRequiredRef.current?.setCustomValidity('');
+  }, [formData.accountTypeId]);
 
   const fetchReceitas = async () => {
     setIsLoading(true);
@@ -230,8 +250,8 @@ export default function Receitas() {
     if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
     if (accountTypeFiltro !== 'todos') params.set('accountTypeId', accountTypeFiltro);
     if (cashAccountFiltro !== 'todas') params.set('cashAccountId', cashAccountFiltro);
-    if (dataInicioFiltro) params.set('dateFrom', dataInicioFiltro);
-    if (dataFimFiltro) params.set('dateTo', dataFimFiltro);
+    if (debouncedDataInicioFiltro) params.set('dateFrom', debouncedDataInicioFiltro);
+    if (debouncedDataFimFiltro) params.set('dateTo', debouncedDataFimFiltro);
     if (sortColumn) {
       params.set('sortBy', String(sortColumn));
       params.set('sortDirection', sortDirection);
@@ -258,8 +278,8 @@ export default function Receitas() {
         receita.contaCaixa.toLowerCase().includes(debouncedSearchTerm);
       const matchesAccountType = accountTypeFiltro === 'todos' || String(receita.accountTypeId) === accountTypeFiltro;
       const matchesCashAccount = cashAccountFiltro === 'todas' || String(receita.cashAccountId) === cashAccountFiltro;
-      const matchesStartDate = !dataInicioFiltro || (receita.dataReceita && receita.dataReceita >= dataInicioFiltro);
-      const matchesEndDate = !dataFimFiltro || (receita.dataReceita && receita.dataReceita <= dataFimFiltro);
+      const matchesStartDate = !debouncedDataInicioFiltro || (receita.dataReceita && receita.dataReceita >= debouncedDataInicioFiltro);
+      const matchesEndDate = !debouncedDataFimFiltro || (receita.dataReceita && receita.dataReceita <= debouncedDataFimFiltro);
 
       return matchesSearch && matchesAccountType && matchesCashAccount && matchesStartDate && matchesEndDate;
     });
@@ -341,8 +361,8 @@ export default function Receitas() {
     debouncedSearchTerm,
     accountTypeFiltro,
     cashAccountFiltro,
-    dataInicioFiltro,
-    dataFimFiltro,
+    debouncedDataInicioFiltro,
+    debouncedDataFimFiltro,
     sortColumn,
     sortDirection,
   ]);
@@ -354,8 +374,8 @@ export default function Receitas() {
     debouncedSearchTerm,
     accountTypeFiltro,
     cashAccountFiltro,
-    dataInicioFiltro,
-    dataFimFiltro,
+    debouncedDataInicioFiltro,
+    debouncedDataFimFiltro,
     sortColumn,
     sortDirection,
   ]);
@@ -386,6 +406,40 @@ export default function Receitas() {
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (!dataInicioFiltro || /^\d{4}-\d{2}-\d{2}$/.test(dataInicioFiltro)) {
+        setDebouncedDataInicioFiltro(dataInicioFiltro);
+      }
+
+      if (!dataFimFiltro || /^\d{4}-\d{2}-\d{2}$/.test(dataFimFiltro)) {
+        setDebouncedDataFimFiltro(dataFimFiltro);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [dataInicioFiltro, dataFimFiltro]);
+
+  const handleDataInicioFiltroChange = (value: string) => {
+    setDataInicioFiltro(value);
+  };
+
+  const handleDataInicioFiltroBlur = () => {
+    if (dataInicioFiltro && dataFimFiltro && dataInicioFiltro > dataFimFiltro) {
+      setDataInicioFiltro(dataFimFiltro);
+    }
+  };
+
+  const handleDataFimFiltroChange = (value: string) => {
+    setDataFimFiltro(value);
+  };
+
+  const handleDataFimFiltroBlur = () => {
+    if (dataFimFiltro && dataInicioFiltro && dataFimFiltro < dataInicioFiltro) {
+      setDataFimFiltro(dataInicioFiltro);
+    }
+  };
+
   const scrollToPaginationBottomAfterLoad = () => {
     scrollToPaginationBottomRef.current = true;
   };
@@ -407,6 +461,12 @@ export default function Receitas() {
       setSortColumn(column);
       setSortDirection('asc');
     }
+  };
+
+  const showNewestRecordsFirst = () => {
+    setSortColumn('id');
+    setSortDirection('desc');
+    setCurrentPage(1);
   };
 
   const getSortIcon = (column: keyof Receita) => {
@@ -466,9 +526,18 @@ export default function Receitas() {
     setFormData(DEFAULT_FORM);
   };
 
-  const saveReceita = async () => {
-    if (!formData.descricao.trim() || !formData.cashAccountId || !formData.valor.trim()) {
+  const saveReceita = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
+    const valor = parseCurrencyInput(formData.valor);
+
+    if (!formData.descricao.trim() || !formData.cashAccountId || !formData.accountTypeId || !formData.valor.trim() || !formData.dataReceita) {
       toast.error('Preencha os campos obrigatórios.');
+      return;
+    }
+
+    if (valor <= 0) {
+      toast.error('O valor da receita deve ser maior que zero.');
       return;
     }
 
@@ -482,7 +551,7 @@ export default function Receitas() {
       const payload: Record<string, unknown> = {
         description: formData.descricao.trim(),
         cashAccountId: Number(formData.cashAccountId),
-        value: parseCurrencyInput(formData.valor),
+        value: valor,
       };
 
       if (formData.accountTypeId) {
@@ -501,6 +570,10 @@ export default function Receitas() {
 
       if (!response.ok || !result?.success) {
         throw new Error(result?.error || 'Erro ao salvar receita.');
+      }
+
+      if (!isEditing) {
+        showNewestRecordsFirst();
       }
 
       toast.success(isEditing ? 'Receita atualizada com sucesso.' : 'Receita cadastrada com sucesso.');
@@ -615,26 +688,31 @@ export default function Receitas() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
-                  <DialogHeader>
-                    <DialogTitle>{editingReceita ? 'Editar Receita' : 'Nova Receita'}</DialogTitle>
-                    <DialogDescription>
-                      {editingReceita ? 'Altere as informações da receita' : 'Registre uma nova receita no sistema'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                    <div className="col-span-full space-y-2">
-                      <Label htmlFor="descricao">Descrição</Label>
+                  <form onSubmit={saveReceita}>
+                    <DialogHeader>
+                      <DialogTitle>{editingReceita ? 'Editar Receita' : 'Nova Receita'}</DialogTitle>
+                      <DialogDescription>
+                        {editingReceita ? 'Altere as informações da receita' : 'Registre uma nova receita no sistema'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                      <div className="col-span-full space-y-2">
+                      <Label htmlFor="descricao" className="dark:text-slate-300">Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                       <Input
                         id="descricao"
+                        required
                         placeholder="Descrição da receita"
                         value={formData.descricao}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição da receita.')}
+                        onInput={clearFieldValidity}
                         onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+                        className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="contaCaixa">Conta Caixa</Label>
+                      <Label htmlFor="contaCaixa" className="dark:text-slate-300">Conta Caixa <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                       <Select value={formData.cashAccountId} onValueChange={(value) => setFormData((prev) => ({ ...prev, cashAccountId: value }))}>
-                        <SelectTrigger id="contaCaixa" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                        <SelectTrigger id="contaCaixa" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue placeholder="Selecione a conta" />
                         </SelectTrigger>
                         <SelectContent>
@@ -645,11 +723,28 @@ export default function Receitas() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <select
+                        ref={cashAccountRequiredRef}
+                        required
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        className="sr-only"
+                        value={formData.cashAccountId}
+                        onInvalid={(e) => setRequiredMessage(e, 'Selecione a conta caixa.')}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, cashAccountId: e.target.value }))}
+                      >
+                        <option value="">Selecione a conta</option>
+                        {cashAccounts.map((item) => (
+                          <option key={item.id} value={String(item.id)}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="tipoConta">Tipo de Conta</Label>
+                      <Label htmlFor="tipoConta" className="dark:text-slate-300">Tipo de Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                       <Select value={formData.accountTypeId} onValueChange={(value) => setFormData((prev) => ({ ...prev, accountTypeId: value }))}>
-                        <SelectTrigger id="tipoConta" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                        <SelectTrigger id="tipoConta" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
@@ -660,38 +755,70 @@ export default function Receitas() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <select
+                        ref={accountTypeRequiredRef}
+                        required
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        className="sr-only"
+                        value={formData.accountTypeId}
+                        onInvalid={(e) => setRequiredMessage(e, 'Selecione o tipo de conta.')}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, accountTypeId: e.target.value }))}
+                      >
+                        <option value="">Selecione o tipo</option>
+                        {accountTypes.map((item) => (
+                          <option key={item.id} value={String(item.id)}>
+                            {item.description}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="valor">Valor</Label>
+                      <Label htmlFor="valor" className="dark:text-slate-300">Valor <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                       <Input
                         id="valor"
+                        required
                         type="text"
                         inputMode="numeric"
                         placeholder="0,00"
                         value={formData.valor}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe o valor da receita.')}
+                        onInput={clearFieldValidity}
+                        onBlur={(e) => {
+                          if (formData.valor.trim() && parseCurrencyInput(formData.valor) <= 0) {
+                            e.currentTarget.setCustomValidity('O valor da receita deve ser maior que zero.');
+                            return;
+                          }
+
+                          e.currentTarget.setCustomValidity('');
+                        }}
                         onChange={(e) => setFormData((prev) => ({ ...prev, valor: formatCurrencyInput(e.target.value) }))}
                         className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="dataReceita">Data da Receita</Label>
+                      <Label htmlFor="dataReceita" className="dark:text-slate-300">Data da Receita <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                       <Input
                         id="dataReceita"
+                        required
                         type="date"
                         value={formData.dataReceita}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe a data da receita.')}
+                        onInput={clearFieldValidity}
                         onChange={(e) => setFormData((prev) => ({ ...prev, dataReceita: e.target.value }))}
                         className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                       />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
+                    <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
                       Cancelar
                     </Button>
-                    <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={saveReceita} disabled={isSaving}>
+                    <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" disabled={isSaving}>
                       {isSaving ? 'Salvando...' : editingReceita ? 'Atualizar' : 'Salvar'}
                     </Button>
                   </DialogFooter>
+                  </form>
                 </DialogContent>
               </Dialog>
             </div>
@@ -735,12 +862,28 @@ export default function Receitas() {
 
               <div className="space-y-2">
                 <Label htmlFor="dataInicioFiltro" className="dark:text-slate-300">Data Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
+                <Input
+                  id="dataInicioFiltro"
+                  type="date"
+                  value={dataInicioFiltro}
+                  max={dataFimFiltro || undefined}
+                  onChange={(e) => handleDataInicioFiltroChange(e.target.value)}
+                  onBlur={handleDataInicioFiltroBlur}
+                  className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dataFimFiltro" className="dark:text-slate-300">Data Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
+                <Input
+                  id="dataFimFiltro"
+                  type="date"
+                  value={dataFimFiltro}
+                  min={dataInicioFiltro || undefined}
+                  onChange={(e) => handleDataFimFiltroChange(e.target.value)}
+                  onBlur={handleDataFimFiltroBlur}
+                  className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                />
               </div>
             </div>
           )}

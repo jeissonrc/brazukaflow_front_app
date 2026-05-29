@@ -287,6 +287,8 @@ export default function ContasReceber() {
   const [originFiltro, setOriginFiltro] = useState('todas');
   const [dataInicioFiltro, setDataInicioFiltro] = useState('');
   const [dataFimFiltro, setDataFimFiltro] = useState('');
+  const [debouncedDataInicioFiltro, setDebouncedDataInicioFiltro] = useState('');
+  const [debouncedDataFimFiltro, setDebouncedDataFimFiltro] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [massDialogOpen, setMassDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -341,6 +343,20 @@ export default function ContasReceber() {
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (!dataInicioFiltro || /^\d{4}-\d{2}-\d{2}$/.test(dataInicioFiltro)) {
+        setDebouncedDataInicioFiltro(dataInicioFiltro);
+      }
+
+      if (!dataFimFiltro || /^\d{4}-\d{2}-\d{2}$/.test(dataFimFiltro)) {
+        setDebouncedDataFimFiltro(dataFimFiltro);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [dataInicioFiltro, dataFimFiltro]);
+
   const fetchContas = async () => {
     setIsLoading(true);
     const params = new URLSearchParams({
@@ -353,8 +369,8 @@ export default function ContasReceber() {
     if (paymentTypeFiltro !== 'todos') params.set('paymentTypeId', paymentTypeFiltro);
     if (accountTypeFiltro !== 'todos') params.set('accountTypeId', accountTypeFiltro);
     if (originFiltro !== 'todas') params.set('originId', originFiltro);
-    if (dataInicioFiltro) params.set('dateFrom', dataInicioFiltro);
-    if (dataFimFiltro) params.set('dateTo', dataFimFiltro);
+    if (debouncedDataInicioFiltro) params.set('dateFrom', debouncedDataInicioFiltro);
+    if (debouncedDataFimFiltro) params.set('dateTo', debouncedDataFimFiltro);
     if (sortColumn) {
       params.set('sortBy', String(sortColumn));
       params.set('sortDirection', sortDirection);
@@ -399,8 +415,8 @@ export default function ContasReceber() {
       const matchesPaymentType = paymentTypeFiltro === 'todos' || String(conta.paymentTypeId) === paymentTypeFiltro;
       const matchesAccountType = accountTypeFiltro === 'todos' || String(conta.accountTypeId) === accountTypeFiltro;
       const matchesOrigin = originFiltro === 'todas' || String(conta.originId) === originFiltro;
-      const matchesStartDate = !dataInicioFiltro || (conta.dataVencimento && conta.dataVencimento >= dataInicioFiltro);
-      const matchesEndDate = !dataFimFiltro || (conta.dataVencimento && conta.dataVencimento <= dataFimFiltro);
+      const matchesStartDate = !debouncedDataInicioFiltro || (conta.dataVencimento && conta.dataVencimento >= debouncedDataInicioFiltro);
+      const matchesEndDate = !debouncedDataFimFiltro || (conta.dataVencimento && conta.dataVencimento <= debouncedDataFimFiltro);
 
       return matchesSearch && matchesStatus && matchesPaymentType && matchesAccountType && matchesOrigin && matchesStartDate && matchesEndDate;
     });
@@ -487,8 +503,8 @@ export default function ContasReceber() {
     paymentTypeFiltro,
     accountTypeFiltro,
     originFiltro,
-    dataInicioFiltro,
-    dataFimFiltro,
+    debouncedDataInicioFiltro,
+    debouncedDataFimFiltro,
     sortColumn,
     sortDirection,
   ]);
@@ -502,8 +518,8 @@ export default function ContasReceber() {
     paymentTypeFiltro,
     accountTypeFiltro,
     originFiltro,
-    dataInicioFiltro,
-    dataFimFiltro,
+    debouncedDataInicioFiltro,
+    debouncedDataFimFiltro,
     sortColumn,
     sortDirection,
   ]);
@@ -526,6 +542,26 @@ export default function ContasReceber() {
     }
   }, [isLoading, contas]);
 
+  const handleDataInicioFiltroChange = (value: string) => {
+    setDataInicioFiltro(value);
+  };
+
+  const handleDataInicioFiltroBlur = () => {
+    if (dataInicioFiltro && dataFimFiltro && dataInicioFiltro > dataFimFiltro) {
+      setDataInicioFiltro(dataFimFiltro);
+    }
+  };
+
+  const handleDataFimFiltroChange = (value: string) => {
+    setDataFimFiltro(value);
+  };
+
+  const handleDataFimFiltroBlur = () => {
+    if (dataFimFiltro && dataInicioFiltro && dataFimFiltro < dataInicioFiltro) {
+      setDataFimFiltro(dataInicioFiltro);
+    }
+  };
+
   const scrollToPaginationBottomAfterLoad = () => {
     scrollToPaginationBottomRef.current = true;
   };
@@ -547,6 +583,12 @@ export default function ContasReceber() {
       setSortColumn(column);
       setSortDirection('asc');
     }
+  };
+
+  const showNewestRecordsFirst = () => {
+    setSortColumn('id');
+    setSortDirection('desc');
+    setCurrentPage(1);
   };
 
   const getSortIcon = (column: keyof ContaReceber) => {
@@ -741,6 +783,10 @@ export default function ContasReceber() {
         }
       }
 
+      if (!isEditing) {
+        showNewestRecordsFirst();
+      }
+
       toast.success(isEditing ? 'Conta a receber atualizada com sucesso.' : 'Conta a receber cadastrada com sucesso.');
       handleCloseDialog();
       await fetchContas();
@@ -817,6 +863,7 @@ export default function ContasReceber() {
         throw new Error(result?.error || 'Erro ao gerar contas a receber em massa.');
       }
 
+      showNewestRecordsFirst();
       toast.success(`${parcelas} conta(s) a receber gerada(s) com sucesso.`);
       handleCloseMassDialog();
       await fetchContas();
@@ -1135,21 +1182,22 @@ export default function ContasReceber() {
                           className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                         />
                       </div>
-                      <div className="col-span-full space-y-2">
+                      <div className="space-y-2">
                         <Label htmlFor="obsMassa" className="dark:text-slate-300">Observações</Label>
                         <Textarea
                           id="obsMassa"
                           name="obsMassa"
                           placeholder="Observações"
-                          rows={3}
+                          rows={2}
                           value={massForm.observacoes}
                           onChange={(e) => setMassForm((prev) => ({ ...prev, observacoes: e.target.value }))}
-                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
+                          className="!h-16 !min-h-16 !max-h-16 resize-none overflow-y-auto [field-sizing:fixed] dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-thumb]:cursor-default [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-white [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:cursor-default [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent dark:[&::-webkit-scrollbar-thumb]:border-[#273447] dark:[&::-webkit-scrollbar-thumb]:bg-[#4b5b70]"
                         />
                       </div>
-                      <div className="col-span-full p-4 bg-blue-50 border border-blue-200 rounded-lg dark:border-[#2f394a] dark:bg-[#273447]">
-                        <p className="text-blue-800 dark:text-[#8ab4f8]">
-                          <strong>Exemplo:</strong> Se informar valor total de R$ 9.000,00 e 3 parcelas, serão geradas 3 contas de R$ 3.000,00 cada, com vencimentos mensais a partir da data informada.
+                      <div className="col-span-full bg-slate-50/70 px-3 py-2 dark:bg-[#273447]/70">
+                        <p className="text-justify text-xs italic leading-relaxed text-slate-500 dark:text-slate-400">
+                          <span className="font-medium not-italic text-slate-600 dark:text-slate-300">Exemplo:</span>{' '}
+                          Valor total de R$ 90,00 e 3 parcelas geram 3 contas de R$ 30,00 cada, com vencimentos mensais a partir da data informada.
                         </p>
                       </div>
                     </div>
@@ -1416,12 +1464,28 @@ export default function ContasReceber() {
 
               <div className="space-y-2">
                 <Label htmlFor="dataInicioFiltro" className="dark:text-slate-300">Vencimento Inicial</Label>
-                <Input id="dataInicioFiltro" type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
+                <Input
+                  id="dataInicioFiltro"
+                  type="date"
+                  value={dataInicioFiltro}
+                  max={dataFimFiltro || undefined}
+                  onChange={(e) => handleDataInicioFiltroChange(e.target.value)}
+                  onBlur={handleDataInicioFiltroBlur}
+                  className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dataFimFiltro" className="dark:text-slate-300">Vencimento Final</Label>
-                <Input id="dataFimFiltro" type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100" />
+                <Input
+                  id="dataFimFiltro"
+                  type="date"
+                  value={dataFimFiltro}
+                  min={dataInicioFiltro || undefined}
+                  onChange={(e) => handleDataFimFiltroChange(e.target.value)}
+                  onBlur={handleDataFimFiltroBlur}
+                  className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                />
               </div>
             </div>
           )}

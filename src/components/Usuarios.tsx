@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Shield, User, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
@@ -133,6 +133,14 @@ const mapApiUserToUsuario = (user: ApiUser): Usuario => ({
   status: user.active ? 'ativo' : 'inativo',
 });
 
+const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement | HTMLSelectElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
+
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -154,6 +162,7 @@ export default function Usuarios() {
   const scrollToPaginationBottomRef = useRef(false);
   const fetchUsersRequestRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement>(null);
+  const perfilRequiredRef = useRef<HTMLSelectElement>(null);
 
   const adminProfileId = useMemo(() => {
     return profiles.find((profile) => Number(profile.id) === PROFILE_IDS.ADMIN)?.id ?? PROFILE_IDS.ADMIN;
@@ -594,7 +603,9 @@ export default function Usuarios() {
     setDialogOpen(true);
   };
 
-  const saveUsuario = async () => {
+  const saveUsuario = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     if (!formData.nome.trim() || !formData.login.trim() || (!editingUsuario && !formData.senha)) {
       toast.error('Preencha os campos obrigatórios.');
       return;
@@ -783,111 +794,142 @@ export default function Usuarios() {
                 </Button>
               )}
               <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
-                <DialogHeader>
-                  <DialogTitle className="dark:text-slate-100">
-                    {isOwnLimitedEdit ? 'Minha Conta' : editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}
-                  </DialogTitle>
-                  <DialogDescription className="dark:text-slate-400">
-                    {isOwnLimitedEdit
-                      ? 'Altere seu nome ou sua senha'
-                      : editingUsuario
-                        ? 'Altere as informações do usuário'
-                        : 'Cadastre um novo usuário no sistema'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome" className="dark:text-slate-300">
-                      Nome Completo
-                    </Label>
-                    <Input
-                      id="nome"
-                      placeholder="Nome do usuário"
-                      value={formData.nome}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
-                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login" className="dark:text-slate-300">
-                      Login
-                    </Label>
-                    <Input
-                      id="login"
-                      placeholder="usuario"
-                      value={formData.login}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
-                      disabled={isOwnLimitedEdit}
-                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="senha" className="dark:text-slate-300">
-                      {editingUsuario ? 'Nova senha (opcional)' : 'Senha'}
-                    </Label>
-                    <Input
-                      id="senha"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.senha}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, senha: e.target.value }))}
-                      className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="perfil" className="dark:text-slate-300">
-                      Perfil de Acesso
-                    </Label>
-                    <Select
-                      value={formData.perfil}
-                      disabled={isOwnLimitedEdit}
-                      onValueChange={(value: 'admin' | 'operational') => setFormData((prev) => ({ ...prev, perfil: value }))}
-                    >
-                      <SelectTrigger
-                        id="perfil"
-                        className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                <form onSubmit={saveUsuario}>
+                  <DialogHeader>
+                    <DialogTitle className="dark:text-slate-100">
+                      {isOwnLimitedEdit ? 'Minha Conta' : editingUsuario ? 'Editar Usuário' : 'Novo Usuário'}
+                    </DialogTitle>
+                    <DialogDescription className="dark:text-slate-400">
+                      {isOwnLimitedEdit
+                        ? 'Altere seu nome ou sua senha'
+                        : editingUsuario
+                          ? 'Altere as informações do usuário'
+                          : 'Cadastre um novo usuário no sistema'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="nome" className="dark:text-slate-300">
+                        Nome Completo <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                      </Label>
+                      <Input
+                        id="nome"
+                        required
+                        placeholder="Nome do usuário"
+                        value={formData.nome}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe o nome completo do usuário.')}
+                        onInput={clearFieldValidity}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+                        className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login" className="dark:text-slate-300">
+                        Login {!isOwnLimitedEdit && <span className="text-red-600 dark:text-[#e7a0a9]">*</span>}
+                      </Label>
+                      <Input
+                        id="login"
+                        required={!isOwnLimitedEdit}
+                        placeholder="usuario"
+                        value={formData.login}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe o login do usuário.')}
+                        onInput={clearFieldValidity}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
+                        disabled={isOwnLimitedEdit}
+                        className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="senha" className="dark:text-slate-300">
+                        {editingUsuario ? 'Nova senha (opcional)' : 'Senha'} {!editingUsuario && <span className="text-red-600 dark:text-[#e7a0a9]">*</span>}
+                      </Label>
+                      <Input
+                        id="senha"
+                        type="password"
+                        required={!editingUsuario}
+                        placeholder="••••••••"
+                        value={formData.senha}
+                        onInvalid={(e) => setRequiredMessage(e, 'Informe a senha do usuário.')}
+                        onInput={clearFieldValidity}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, senha: e.target.value }))}
+                        className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="perfil" className="dark:text-slate-300">
+                        Perfil de Acesso {!isOwnLimitedEdit && <span className="text-red-600 dark:text-[#e7a0a9]">*</span>}
+                      </Label>
+                      <Select
+                        value={formData.perfil}
+                        disabled={isOwnLimitedEdit}
+                        onValueChange={(value: 'admin' | 'operational') => {
+                          perfilRequiredRef.current?.setCustomValidity('');
+                          setFormData((prev) => ({ ...prev, perfil: value }));
+                        }}
                       >
-                        <SelectValue placeholder="Selecione o perfil" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin" className="cursor-pointer dark:text-slate-100">Administrador - Acesso Total</SelectItem>
-                        <SelectItem value="operational" className="cursor-pointer dark:text-slate-100">Operacional - Acesso ao Sistema</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectTrigger
+                          id="perfil"
+                          aria-required={!isOwnLimitedEdit}
+                          className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
+                        >
+                          <SelectValue placeholder="Selecione o perfil" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin" className="cursor-pointer dark:text-slate-100">Administrador - Acesso Total</SelectItem>
+                          <SelectItem value="operational" className="cursor-pointer dark:text-slate-100">Operacional - Acesso ao Sistema</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <select
+                        ref={perfilRequiredRef}
+                        required={!isOwnLimitedEdit}
+                        disabled={isOwnLimitedEdit}
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        className="sr-only"
+                        value={formData.perfil}
+                        onInvalid={(e) => setRequiredMessage(e, 'Selecione o perfil de acesso.')}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, perfil: e.target.value as 'admin' | 'operational' }))}
+                      >
+                        <option value="">Selecione o perfil</option>
+                        <option value="admin">Administrador - Acesso Total</option>
+                        <option value="operational">Operacional - Acesso ao Sistema</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="ativo"
+                        className="cursor-pointer disabled:cursor-not-allowed"
+                        checked={formData.ativo}
+                        disabled={isOwnLimitedEdit}
+                        onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
+                      />
+                      <Label
+                        htmlFor="ativo"
+                        className={formData.ativo ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-gray-600 dark:text-slate-300'}
+                      >
+                        {formData.ativo ? 'Ativo' : 'Inativo'}
+                      </Label>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="ativo"
-                      className="cursor-pointer disabled:cursor-not-allowed"
-                      checked={formData.ativo}
-                      disabled={isOwnLimitedEdit}
-                      onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, ativo: checked }))}
-                    />
-                    <Label
-                      htmlFor="ativo"
-                      className={formData.ativo ? 'text-green-700 dark:text-[#8bd8b1]' : 'text-gray-600 dark:text-slate-300'}
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+                      onClick={handleCloseDialog}
+                      disabled={isSaving}
                     >
-                      {formData.ativo ? 'Ativo' : 'Inativo'}
-                    </Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
-                    onClick={handleCloseDialog}
-                    disabled={isSaving}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]"
-                    onClick={saveUsuario}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? 'Salvando...' : editingUsuario ? 'Atualizar' : 'Salvar'}
-                  </Button>
-                </DialogFooter>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Salvando...' : editingUsuario ? 'Atualizar' : 'Salvar'}
+                    </Button>
+                  </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
           </div>

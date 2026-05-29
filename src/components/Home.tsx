@@ -51,6 +51,14 @@ type MonthData = {
   despesas: number;
 };
 
+type HomeDashboardResponse = {
+  monthlyData: MonthData[];
+  incomes: ApiCashEntry[];
+  expenses: ApiCashEntry[];
+  payables: ApiAccount[];
+  receivables: ApiAccount[];
+};
+
 const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981'];
 const CHART_TOOLTIP_CONTENT_STYLE = {
   backgroundColor: 'var(--popover)',
@@ -100,6 +108,12 @@ const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style:
 const normalizeDateInput = (value?: string | null) => (value ? value.slice(0, 10) : '');
 const toMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const getMonthKeyFromInput = (value: string) => value.slice(0, 7);
+const sortByDateWithEmptyLast = (a: HomeItem, b: HomeItem) => {
+  if (!a.data && !b.data) return 0;
+  if (!a.data) return 1;
+  if (!b.data) return -1;
+  return a.data.localeCompare(b.data);
+};
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -172,19 +186,28 @@ export default function Home({ onNavigate }: HomeProps) {
   const loadHomeData = async () => {
     setIsLoading(true);
     try {
-      const [payablesData, receivablesData, incomesData, expensesData] = await Promise.all([
-        fetchJson<ApiAccount[]>('/api/accounts-payable'),
-        fetchJson<ApiAccount[]>('/api/accounts-receivable'),
-        fetchJson<ApiCashEntry[]>('/api/incomes'),
-        fetchJson<ApiCashEntry[]>('/api/expenses'),
-      ]);
+      const dashboardData = await fetchJson<HomeDashboardResponse>('/api/dashboard/home');
 
-      setPayables((payablesData || []).map(mapAccount));
-      setReceivables((receivablesData || []).map(mapAccount));
-      setIncomes((incomesData || []).map((entry) => mapCashEntry(entry, 'Receita')));
-      setExpenses((expensesData || []).map((entry) => mapCashEntry(entry, 'Despesa')));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao carregar home.');
+      setPayables((dashboardData.payables || []).map(mapAccount));
+      setReceivables((dashboardData.receivables || []).map(mapAccount));
+      setIncomes((dashboardData.incomes || []).map((entry) => mapCashEntry(entry, 'Receita')));
+      setExpenses((dashboardData.expenses || []).map((entry) => mapCashEntry(entry, 'Despesa')));
+    } catch {
+      try {
+        const [payablesData, receivablesData, incomesData, expensesData] = await Promise.all([
+          fetchJson<ApiAccount[]>('/api/accounts-payable'),
+          fetchJson<ApiAccount[]>('/api/accounts-receivable'),
+          fetchJson<ApiCashEntry[]>('/api/incomes'),
+          fetchJson<ApiCashEntry[]>('/api/expenses'),
+        ]);
+
+        setPayables((payablesData || []).map(mapAccount));
+        setReceivables((receivablesData || []).map(mapAccount));
+        setIncomes((incomesData || []).map((entry) => mapCashEntry(entry, 'Receita')));
+        setExpenses((expensesData || []).map((entry) => mapCashEntry(entry, 'Despesa')));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar home.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -251,12 +274,12 @@ export default function Home({ onNavigate }: HomeProps) {
   }, [expenses]);
 
   const pendingReceivables = useMemo(
-    () => receivables.filter((item) => !item.pago).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3),
+    () => receivables.filter((item) => !item.pago).sort(sortByDateWithEmptyLast).slice(0, 2),
     [receivables],
   );
 
   const pendingPayables = useMemo(
-    () => payables.filter((item) => !item.pago).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3),
+    () => payables.filter((item) => !item.pago).sort(sortByDateWithEmptyLast).slice(0, 2),
     [payables],
   );
 
@@ -355,7 +378,7 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader>
             <CardTitle>Receitas vs Despesas</CardTitle>
-            <CardDescription>Comparativo mensal dos últimos 6 meses</CardDescription>
+            <CardDescription>Lançamentos mensais dos últimos 6 meses</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="[--home-positive-chart:#10b981] [--home-negative-chart:#ef4444] dark:[--home-positive-chart:#8bd8b1] dark:[--home-negative-chart:#e7a0a9]">
@@ -383,7 +406,7 @@ export default function Home({ onNavigate }: HomeProps) {
         <Card>
           <CardHeader>
             <CardTitle>Evolução do Saldo</CardTitle>
-            <CardDescription>Tendência de crescimento financeiro</CardDescription>
+            <CardDescription>Saldo entre receitas e despesas lançadas</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="[--home-balance-chart:#3b82f6] dark:[--home-balance-chart:#7fb7e8]">
@@ -448,7 +471,7 @@ export default function Home({ onNavigate }: HomeProps) {
               </div>
             )}
             {categoryData.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-6 space-y-2">
                 {categoryData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
                     <div className="flex items-center gap-2 min-w-0">
@@ -465,40 +488,64 @@ export default function Home({ onNavigate }: HomeProps) {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Próximos Vencimentos</CardTitle>
-            <CardDescription>Contas a receber e pagar nos próximos dias</CardDescription>
+            <CardTitle>Pendências e Vencimentos</CardTitle>
+            <CardDescription>Contas a receber e pagar em aberto</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-1.5">
               <div>
-                <h4 className="text-green-600 dark:text-emerald-300 mb-3">A Receber</h4>
+                <h4 className="text-green-600 dark:text-emerald-300 mb-2">A Receber</h4>
                 <div className="space-y-2">
-                  {pendingReceivables.slice(0, 2).map((item) => (
+                  {pendingReceivables.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg dark:bg-[#273447] dark:border dark:border-[#374151] dark:border-l-2 dark:border-l-[#4ade80]/70">
                       <div>
-                        <p className="text-gray-900">{item.descricao}</p>
-                        <p className="text-gray-500">{getDaysLabel(item.data)}</p>
+                        <p className="text-gray-900 dark:text-slate-100">{item.descricao}</p>
+                        <p className="text-gray-500 dark:text-slate-400">{getDaysLabel(item.data)}</p>
                       </div>
                       <div className="text-green-600 dark:text-[#8bd8b1]">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
-                  {pendingReceivables.length === 0 && <p className="text-gray-500">Nenhuma conta a receber pendente.</p>}
+                  {pendingReceivables.length === 0 && <p className="text-gray-500 dark:text-slate-400">Nenhuma conta a receber pendente.</p>}
+                  {pendingReceivablesAll.length > pendingReceivables.length && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto cursor-pointer px-2 py-1 font-normal text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-[#7fb7e8] dark:hover:bg-[#243043] dark:hover:text-[#9dccf0]"
+                        onClick={() => onNavigate('receber')}
+                      >
+                        Ver todas
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
-                <h4 className="text-red-600 dark:text-rose-300 mb-3">A Pagar</h4>
+                <h4 className="text-red-600 dark:text-rose-300 mb-2">A Pagar</h4>
                 <div className="space-y-2">
-                  {pendingPayables.slice(0, 2).map((item) => (
+                  {pendingPayables.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg dark:bg-[#273447] dark:border dark:border-[#374151] dark:border-l-2 dark:border-l-[#fb7185]/70">
                       <div>
-                        <p className="text-gray-900">{item.descricao}</p>
-                        <p className="text-gray-500">{getDaysLabel(item.data)}</p>
+                        <p className="text-gray-900 dark:text-slate-100">{item.descricao}</p>
+                        <p className="text-gray-500 dark:text-slate-400">{getDaysLabel(item.data)}</p>
                       </div>
                       <div className="text-red-600 dark:text-[#e7a0a9]">{formatCurrency(item.valor)}</div>
                     </div>
                   ))}
-                  {pendingPayables.length === 0 && <p className="text-gray-500">Nenhuma conta a pagar pendente.</p>}
+                  {pendingPayables.length === 0 && <p className="text-gray-500 dark:text-slate-400">Nenhuma conta a pagar pendente.</p>}
+                  {pendingPayablesAll.length > pendingPayables.length && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto cursor-pointer px-2 py-1 font-normal text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-[#7fb7e8] dark:hover:bg-[#243043] dark:hover:text-[#9dccf0]"
+                        onClick={() => onNavigate('pagar')}
+                      >
+                        Ver todas
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

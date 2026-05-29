@@ -1,7 +1,7 @@
-import { Database, ShieldCheck, Wrench } from 'lucide-react';
+import { Database, FileCog, ShieldCheck, Wrench } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 
-type ManutencaoTarget = 'auditoria' | 'backup';
+type ManutencaoTarget = 'auditoria' | 'backup' | 'configuracoes-logs';
 
 type ManutencaoProps = {
   onNavigate: (target: ManutencaoTarget) => void;
@@ -21,6 +21,13 @@ export default function Manutencao({ onNavigate }: ManutencaoProps) {
       title: 'Backup',
       description: 'Exportação SQL dos dados',
       icon: Database,
+      enabled: true,
+    },
+    {
+      id: 'configuracoes-logs' as const,
+      title: 'Configurações de Logs',
+      description: 'Retenção, limpeza e futuras rotinas automáticas',
+      icon: FileCog,
       enabled: true,
     },
   ];

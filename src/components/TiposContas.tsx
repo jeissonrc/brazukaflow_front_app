@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Filter, Eye, Pencil, Trash2, FolderTree, Settings, ArrowLeft, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -100,6 +100,13 @@ const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 
 const formatTipoId = (id: number) => `TC-${String(id).padStart(3, '0')}`;
 const isActiveStatus = (status: ApiTipoConta['status']) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement | HTMLSelectElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -158,6 +165,8 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   const [summary, setSummary] = useState<TiposContasSummary>(DEFAULT_SUMMARY);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
+  const tipoRequiredRef = useRef<HTMLSelectElement>(null);
+  const categoriaRequiredRef = useRef<HTMLSelectElement>(null);
   
   const [formData, setFormData] = useState({
     idTipo: '',
@@ -368,6 +377,12 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     }
   };
 
+  const showNewestRecordsFirst = () => {
+    setSortColumn('id');
+    setSortDirection('desc');
+    setCurrentPage(1);
+  };
+
   const getSortIcon = (column: keyof TipoConta) => {
     if (sortColumn !== column) {
       return <ArrowUpDown className="w-4 h-4 ml-1 inline" />;
@@ -442,7 +457,9 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     const categoria = categorias.find(c => c.id === formData.idCategoria);
     if (!formData.descricao.trim() || !formData.tipo || !formData.idCategoria) {
       toast.error('Preencha os campos obrigatórios.');
@@ -472,6 +489,10 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
 
       if (!response.ok || !result?.success) {
         throw new Error(result?.error || 'Erro ao salvar tipo de conta.');
+      }
+
+      if (!isEditing) {
+        showNewestRecordsFirst();
       }
 
       toast.success(isEditing ? 'Tipo de conta atualizado com sucesso!' : 'Tipo de conta cadastrado com sucesso!');
@@ -899,114 +920,160 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       {/* Dialog de Cadastro/Edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
-          <DialogHeader>
-            <DialogTitle className="dark:text-slate-100">
-              {editingTipo ? 'Editar Tipo de Conta' : 'Novo Tipo de Conta'}
-            </DialogTitle>
-            <DialogDescription className="dark:text-slate-400">
-              {editingTipo 
-                ? 'Altere as informações do tipo de conta' 
-                : 'Preencha os dados para cadastrar um novo tipo de conta'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {editingTipo && (
-              <div className="space-y-2">
-                <Label htmlFor="idTipo" className="dark:text-slate-300">ID Tipo</Label>
-                <Input
-                  id="idTipo"
-                  value={formData.idTipo}
-                  disabled
-                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100"
+          <form onSubmit={handleSave}>
+            <DialogHeader>
+              <DialogTitle className="dark:text-slate-100">
+                {editingTipo ? 'Editar Tipo de Conta' : 'Novo Tipo de Conta'}
+              </DialogTitle>
+              <DialogDescription className="dark:text-slate-400">
+                {editingTipo 
+                  ? 'Altere as informações do tipo de conta' 
+                  : 'Preencha os dados para cadastrar um novo tipo de conta'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              {editingTipo && (
+                <div className="space-y-2">
+                  <Label htmlFor="idTipo" className="dark:text-slate-300">ID Tipo</Label>
+                  <Input
+                    id="idTipo"
+                    value={formData.idTipo}
+                    disabled
+                    className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100"
+                  />
+                </div>
+              )}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="descricao" className="dark:text-slate-300">
+                  Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Input 
+                  id="descricao" 
+                  required
+                  placeholder="Nome descritivo do tipo de conta" 
+                  value={formData.descricao}
+                  onInvalid={(e) => setRequiredMessage(e, 'Informe a descrição do tipo de conta.')}
+                  onInput={clearFieldValidity}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
               </div>
-            )}
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="descricao" className="dark:text-slate-300">Descrição</Label>
-              <Input 
-                id="descricao" 
-                placeholder="Nome descritivo do tipo de conta" 
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tipo" className="dark:text-slate-300">Tipo</Label>
-              <Select 
-                value={formData.tipo} 
-                onValueChange={(value) => {
-                  setFormData({ ...formData, tipo: value, idCategoria: '', especie: '' });
-                }}
-              >
-                <SelectTrigger id="tipo" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
-                  <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="especie" className="dark:text-slate-300">Espécie</Label>
-              <Input 
-                id="especie" 
-                placeholder="Ex: Operacional, Financeira" 
-                value={formData.especie}
-                onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
-                className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="categoria" className="dark:text-slate-300">Categoria</Label>
-              <Select 
-                value={formData.idCategoria} 
-                onValueChange={(value) => {
-                  const cat = categorias.find(c => c.id === value);
-                  setFormData({ 
-                    ...formData, 
-                    idCategoria: value,
-                    especie: cat?.especie || formData.especie
-                  });
+              <div className="space-y-2">
+                <Label htmlFor="tipo" className="dark:text-slate-300">
+                  Tipo <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Select 
+                  value={formData.tipo} 
+                  onValueChange={(value) => {
+                    tipoRequiredRef.current?.setCustomValidity('');
+                    setFormData({ ...formData, tipo: value, idCategoria: '', especie: '' });
                   }}
                 >
-                <SelectTrigger id="categoria" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent>
+                  <SelectTrigger id="tipo" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Receita" className="cursor-pointer">Receita</SelectItem>
+                    <SelectItem value="Despesa" className="cursor-pointer">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <select
+                  ref={tipoRequiredRef}
+                  required
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="sr-only"
+                  value={formData.tipo}
+                  onInvalid={(e) => setRequiredMessage(e, 'Selecione o tipo.')}
+                  onChange={(e) => setFormData({ ...formData, tipo: e.target.value, idCategoria: '', especie: '' })}
+                >
+                  <option value="">Selecione o tipo</option>
+                  <option value="Receita">Receita</option>
+                  <option value="Despesa">Despesa</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="especie" className="dark:text-slate-300">Espécie</Label>
+                <Input 
+                  id="especie" 
+                  placeholder="Ex: Operacional, Financeira" 
+                  value={formData.especie}
+                  onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
+                  className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="categoria" className="dark:text-slate-300">
+                  Categoria <span className="text-red-600 dark:text-[#e7a0a9]">*</span>
+                </Label>
+                <Select 
+                  value={formData.idCategoria} 
+                  onValueChange={(value) => {
+                    const cat = categorias.find(c => c.id === value);
+                    categoriaRequiredRef.current?.setCustomValidity('');
+                    setFormData({ 
+                      ...formData, 
+                      idCategoria: value,
+                      especie: cat?.especie || formData.especie
+                    });
+                  }}
+                >
+                  <SelectTrigger id="categoria" aria-required="true" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias
+                      .filter(cat => cat.tipo === formData.tipo)
+                      .map(cat => (
+                        <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
+                          {`CAT-${String(Number(cat.id)).padStart(3, '0')}`} - {cat.descricao}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <select
+                  ref={categoriaRequiredRef}
+                  required
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="sr-only"
+                  value={formData.idCategoria}
+                  onInvalid={(e) => setRequiredMessage(e, 'Selecione a categoria.')}
+                  onChange={(e) => setFormData({ ...formData, idCategoria: e.target.value })}
+                >
+                  <option value="">Selecione uma categoria</option>
                   {categorias
                     .filter(cat => cat.tipo === formData.tipo)
                     .map(cat => (
-                      <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
+                      <option key={cat.id} value={cat.id}>
                         {`CAT-${String(Number(cat.id)).padStart(3, '0')}`} - {cat.descricao}
-                      </SelectItem>
+                      </option>
                     ))}
-                </SelectContent>
-              </Select>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="status"
+                  className="cursor-pointer"
+                  checked={formData.status === 'Ativo'}
+                  onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
+                />
+                <Label htmlFor="status" className="dark:text-slate-300">Ativo</Label>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="status"
-                className="cursor-pointer"
-                checked={formData.status === 'Ativo'}
-                onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'Ativo' : 'Inativo' })}
-              />
-              <Label htmlFor="status" className="dark:text-slate-300">Ativo</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" 
-              onClick={handleSave}
-              disabled={isSaving || !formData.descricao || !formData.tipo || !formData.idCategoria}
-            >
-              {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit"
+                className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" 
+                disabled={isSaving}
+              >
+                {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

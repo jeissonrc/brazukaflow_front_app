@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Search, CreditCard, Plus, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
@@ -115,7 +115,7 @@ export default function TiposPagamento() {
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
 
-  const getAuthHeaders = () => {
+const getAuthHeaders = () => {
     const token = getAuthToken();
     if (!token) {
       throw new Error('Sessão expirada. Faça login novamente.');
@@ -124,8 +124,16 @@ export default function TiposPagamento() {
     return {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-    };
   };
+};
+
+const clearFieldValidity = (event: FormEvent<HTMLInputElement>) => {
+  event.currentTarget.setCustomValidity('');
+};
+
+const setRequiredMessage = (event: FormEvent<HTMLInputElement>, message: string) => {
+  event.currentTarget.setCustomValidity(message);
+};
 
   const fetchTiposPagamento = async () => {
     setIsLoading(true);
@@ -248,6 +256,12 @@ export default function TiposPagamento() {
     }
   };
 
+  const showNewestRecordsFirst = () => {
+    setSortColumn('id');
+    setSortDirection('desc');
+    setCurrentPage(1);
+  };
+
   const getSortIcon = (column: keyof TipoPagamento) => {
     if (sortColumn !== column) {
       return <ArrowUpDown className="w-4 h-4 ml-1 inline" />;
@@ -336,7 +350,9 @@ export default function TiposPagamento() {
     return { payableCount, receivableCount, total: payableCount + receivableCount };
   };
 
-  const saveTipoPagamento = async () => {
+  const saveTipoPagamento = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     if (!formData.nome.trim()) {
       toast.error('Preencha o nome do tipo de pagamento.');
       return;
@@ -376,6 +392,10 @@ export default function TiposPagamento() {
       const result = await response.json();
       if (!response.ok || !result?.success) {
         throw new Error(result?.error || 'Erro ao salvar tipo de pagamento.');
+      }
+
+      if (!isEditing) {
+        showNewestRecordsFirst();
       }
 
       toast.success(isEditing ? 'Tipo de pagamento atualizado com sucesso.' : 'Tipo de pagamento criado com sucesso.');
@@ -474,19 +494,23 @@ export default function TiposPagamento() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
-                <DialogHeader>
-                  <DialogTitle className="dark:text-slate-100">{editingTipo ? 'Editar Tipo de Pagamento' : 'Novo Tipo de Pagamento'}</DialogTitle>
-                  <DialogDescription className="dark:text-slate-400">
-                    {editingTipo ? 'Altere as informações do tipo de pagamento' : 'Cadastre um novo tipo de pagamento no sistema'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome" className="dark:text-slate-300">Nome</Label>
+                <form onSubmit={saveTipoPagamento}>
+                  <DialogHeader>
+                    <DialogTitle className="dark:text-slate-100">{editingTipo ? 'Editar Tipo de Pagamento' : 'Novo Tipo de Pagamento'}</DialogTitle>
+                    <DialogDescription className="dark:text-slate-400">
+                      {editingTipo ? 'Altere as informações do tipo de pagamento' : 'Cadastre um novo tipo de pagamento no sistema'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                    <Label htmlFor="nome" className="dark:text-slate-300">Nome <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                     <Input 
                       id="nome" 
+                      required
                       placeholder="Ex: Boleto Bancário" 
                       value={formData.nome}
+                      onInvalid={(e) => setRequiredMessage(e, 'Informe o nome do tipo de pagamento.')}
+                      onInput={clearFieldValidity}
                       onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
                       className="dark:bg-[#273447] dark:border-[#3b4658] dark:text-slate-100 dark:placeholder:text-slate-400"
                     />
@@ -514,13 +538,14 @@ export default function TiposPagamento() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
+                  <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" onClick={saveTipoPagamento} disabled={isSaving}>
+                  <Button type="submit" className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155] dark:border dark:border-[#3b4658]" disabled={isSaving}>
                     {isSaving ? 'Salvando...' : editingTipo ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
           </div>

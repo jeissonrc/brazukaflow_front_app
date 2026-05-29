@@ -18,13 +18,14 @@ import Relatorios from './components/Relatorios';
 import Auditoria from './components/Auditoria';
 import Manutencao from './components/Manutencao';
 import Backup from './components/Backup';
+import ConfiguracoesLogs from './components/ConfiguracoesLogs';
 import Login from './components/Login';
 import TiposContas from './components/TiposContas';
 import Categorias from './components/Categorias';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './lib/auth';
 import { canManageSystem, getRoleByProfileId } from './lib/profileRoles';
 
-type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'manutencao' | 'auditoria' | 'backup' | 'usuarios' | 'tipos-contas' | 'categorias';
+type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'manutencao' | 'auditoria' | 'backup' | 'configuracoes-logs' | 'usuarios' | 'tipos-contas' | 'categorias';
 
 const THEME_STORAGE_KEY = 'brazukaflow.theme';
 
@@ -154,11 +155,14 @@ export default function App() {
         return <Manutencao onNavigate={(target) => {
           if (target === 'auditoria') setActiveMenu('auditoria');
           if (target === 'backup') setActiveMenu('backup');
+          if (target === 'configuracoes-logs') setActiveMenu('configuracoes-logs');
         }} />;
       case 'auditoria':
         return <Auditoria onBack={() => setActiveMenu('manutencao')} />;
       case 'backup':
         return <Backup onBack={() => setActiveMenu('manutencao')} />;
+      case 'configuracoes-logs':
+        return <ConfiguracoesLogs onBack={() => setActiveMenu('manutencao')} />;
       case 'usuarios':
         return <Usuarios />;
       case 'tipos-contas':
@@ -185,6 +189,8 @@ export default function App() {
                 ? 'Auditoria'
                 : activeMenu === 'backup'
                   ? 'Backup'
+                  : activeMenu === 'configuracoes-logs'
+                    ? 'Configurações de Logs'
                 : menuItems.find((item) => item.id === activeMenu)?.label;
 
   return (
