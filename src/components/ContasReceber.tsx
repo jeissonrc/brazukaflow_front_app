@@ -1,18 +1,20 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2, CircleAlert } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Textarea } from './ui/textarea';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
+import SearchableSelect from './SearchableSelect';
 
 type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
 
@@ -39,6 +41,19 @@ type ApiPaymentType = {
 type ApiOriginAccount = {
   id: number;
   description?: string | null;
+  category?: number | string | null;
+  person?: boolean | number | string | null;
+};
+
+type ApiCashAccount = {
+  id: number;
+  name: string;
+  status?: boolean | number | string | null;
+};
+
+type ApiLinkedIncome = {
+  id: number;
+  description?: string | null;
 };
 
 type ApiAccountsReceivable = {
@@ -55,6 +70,7 @@ type ApiAccountsReceivable = {
   originId?: number | null;
   accountType?: ApiAccountType;
   paymentType?: ApiPaymentType;
+  linkedIncomes?: ApiLinkedIncome[];
 };
 
 type ContaReceber = {
@@ -72,6 +88,8 @@ type ContaReceber = {
   accountTypeId: number | null;
   originId: number | null;
   origemConta: string;
+  linkedIncomeId: number | null;
+  linkedIncomeDescription: string;
   status: 'pendente' | 'recebido' | 'vencido';
 };
 
@@ -273,6 +291,8 @@ const mapApiContaToConta = (conta: ApiAccountsReceivable, originsById: Map<numbe
   accountTypeId: conta.accountTypeId ?? null,
   originId: conta.originId ?? null,
   origemConta: conta.originId ? originsById.get(conta.originId)?.description || `Origem ${conta.originId}` : '',
+  linkedIncomeId: conta.linkedIncomes?.[0]?.id ?? null,
+  linkedIncomeDescription: conta.linkedIncomes?.[0]?.description || '',
   status: getContaStatus(conta),
 });
 
@@ -294,7 +314,7 @@ export default function ContasReceber() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedConta, setSelectedConta] = useState<ContaReceber | null>(null);
   const [originDialogOpen, setOriginDialogOpen] = useState(false);
-  const [selectedOriginName, setSelectedOriginName] = useState('');
+  const [selectedOrigin, setSelectedOrigin] = useState<ApiOriginAccount | null>(null);
   const [editingConta, setEditingConta] = useState<ContaReceber | null>(null);
   const [accountTypes, setAccountTypes] = useState<ApiAccountType[]>([]);
   const [paymentTypes, setPaymentTypes] = useState<ApiPaymentType[]>([]);
@@ -306,6 +326,13 @@ export default function ContasReceber() {
   const [isMassSaving, setIsMassSaving] = useState(false);
   const [receberDialogOpen, setReceberDialogOpen] = useState(false);
   const [contaToReceber, setContaToReceber] = useState<ContaReceber | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contaToDelete, setContaToDelete] = useState<ContaReceber | null>(null);
+  const [receivedEditConfirmOpen, setReceivedEditConfirmOpen] = useState(false);
+  const [receiveCashAccountId, setReceiveCashAccountId] = useState('');
+  const [cashAccounts, setCashAccounts] = useState<ApiCashAccount[]>([]);
+  const [isReceiving, setIsReceiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof ContaReceber | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -316,6 +343,7 @@ export default function ContasReceber() {
   const paymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massAccountTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massPaymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const receivedEditConfirmedRef = useRef(false);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
 
@@ -442,7 +470,7 @@ export default function ContasReceber() {
     const items = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map((conta) => mapApiContaToConta(conta, originsById));
 
     setContas(items);
-    setOrigins(originsData);
+    setOrigins(originsData.filter((origin) => Number(origin.category) === 2));
     setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
     setSummary(isLegacyArrayResponse ? calculateAccountsSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
     setIsLoading(false);
@@ -460,7 +488,7 @@ export default function ContasReceber() {
 
     const items = ((result.data || []) as ApiAccountType[]).filter(
       (item) => item.type === 'Receita' && isActiveStatus(item.status),
-    );
+    ).sort((a, b) => a.description.localeCompare(b.description, 'pt-BR', { sensitivity: 'base' }));
     setAccountTypes(items);
   };
 
@@ -474,14 +502,30 @@ export default function ContasReceber() {
       throw new Error(result?.error || 'Erro ao carregar tipos de pagamento.');
     }
 
-    const items = ((result.data || []) as ApiPaymentType[]).filter((item) => isActiveStatus(item.status));
+    const items = ((result.data || []) as ApiPaymentType[])
+      .filter((item) => isActiveStatus(item.status))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
     setPaymentTypes(items);
+  };
+
+  const fetchCashAccounts = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/cash-accounts`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar contas caixa.');
+    }
+
+    const items = ((result.data || []) as ApiCashAccount[]).filter((item) => isActiveStatus(item.status));
+    setCashAccounts(items);
   };
 
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        await Promise.all([fetchAccountTypes(), fetchPaymentTypes()]);
+        await Promise.all([fetchAccountTypes(), fetchPaymentTypes(), fetchCashAccounts()]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar módulo de contas a receber.');
       }
@@ -632,13 +676,19 @@ export default function ContasReceber() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta conta a receber?')) {
+  const handleDelete = (conta: ContaReceber) => {
+    setContaToDelete(conta);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteConta = async () => {
+    if (!contaToDelete) {
       return;
     }
 
+    setIsDeleting(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/accounts-receivable/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/accounts-receivable/${contaToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -649,9 +699,13 @@ export default function ContasReceber() {
       }
 
       toast.success('Conta a receber excluída com sucesso.');
+      setDeleteDialogOpen(false);
+      setContaToDelete(null);
       await fetchContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir conta a receber.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -661,7 +715,11 @@ export default function ContasReceber() {
   };
 
   const handleViewOrigin = (conta: ContaReceber) => {
-    setSelectedOriginName(conta.origemConta || 'Origem não localizada.');
+    setSelectedOrigin(origins.find((origin) => origin.id === conta.originId) || {
+      id: conta.originId || 0,
+      description: conta.origemConta || 'Origem não localizada.',
+      person: null,
+    });
     setOriginDialogOpen(true);
   };
 
@@ -682,7 +740,26 @@ export default function ContasReceber() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingConta(null);
+    receivedEditConfirmedRef.current = false;
     setFormData(DEFAULT_FORM);
+  };
+
+  const confirmSaveReceivedConta = () => {
+    receivedEditConfirmedRef.current = true;
+    setReceivedEditConfirmOpen(false);
+    window.setTimeout(() => {
+      saveConta();
+    }, 0);
+  };
+
+  const openReceberDecisionDialog = (conta: ContaReceber) => {
+    setContaToReceber(conta);
+    setReceiveCashAccountId(cashAccounts.length === 1 ? String(cashAccounts[0].id) : '');
+    setReceberDialogOpen(true);
+  };
+
+  const handleGerarReceitaPendente = (conta: ContaReceber) => {
+    openReceberDecisionDialog(conta);
   };
 
   const saveConta = async (event?: FormEvent<HTMLFormElement>) => {
@@ -708,9 +785,12 @@ export default function ContasReceber() {
       return;
     }
 
-    if (editingConta?.status === 'recebido' && !confirm('Esta conta já está recebida. Deseja salvar as alterações mesmo assim?')) {
+    if (editingConta?.status === 'recebido' && !receivedEditConfirmedRef.current) {
+      setReceivedEditConfirmOpen(true);
       return;
     }
+
+    receivedEditConfirmedRef.current = false;
 
     setIsSaving(true);
 
@@ -729,7 +809,7 @@ export default function ContasReceber() {
         nominalDate: formData.dataNominal,
         dueDate: formData.dataVencimento,
         value: valor,
-        paid: formData.status === 'recebido',
+        paid: isEditing && editingConta!.status !== 'recebido' && formData.status === 'recebido' ? false : formData.status === 'recebido',
       };
 
       if (formData.numeroDoc.trim()) {
@@ -766,7 +846,9 @@ export default function ContasReceber() {
         }
       }
 
-      if (!shouldSaveBaseData && formData.status === 'recebido' && (!isEditing || editingConta!.status !== 'recebido')) {
+      const shouldOpenReceiveDecision = Boolean(isEditing && editingConta!.status !== 'recebido' && formData.status === 'recebido');
+
+      if (!shouldOpenReceiveDecision && !shouldSaveBaseData && formData.status === 'recebido' && (!isEditing || editingConta!.status !== 'recebido')) {
         const payPayload = {
           ...(formData.paymentTypeId ? { paymentTypeId: Number(formData.paymentTypeId) } : {}),
           skipAudit: shouldSkipStatusAudit,
@@ -787,7 +869,22 @@ export default function ContasReceber() {
         showNewestRecordsFirst();
       }
 
-      toast.success(isEditing ? 'Conta a receber atualizada com sucesso.' : 'Conta a receber cadastrada com sucesso.');
+      if (shouldOpenReceiveDecision) {
+        openReceberDecisionDialog({
+          ...editingConta!,
+          descricao: formData.descricao.trim(),
+          accountTypeId: Number(formData.accountTypeId),
+          paymentTypeId: Number(formData.paymentTypeId),
+          dataNominal: formData.dataNominal,
+          dataVencimento: formData.dataVencimento,
+          numeroDoc: formData.numeroDoc.trim(),
+          valor,
+          status: editingConta!.status,
+        });
+        toast.success(hasOtherChanges ? 'Alterações salvas. Confirme o recebimento da conta.' : 'Confirme o recebimento da conta.');
+      } else {
+        toast.success(isEditing ? 'Conta a receber atualizada com sucesso.' : 'Conta a receber cadastrada com sucesso.');
+      }
       handleCloseDialog();
       await fetchContas();
     } catch (error) {
@@ -876,16 +973,81 @@ export default function ContasReceber() {
 
   const handleMarcarRecebido = (conta: ContaReceber) => {
     setContaToReceber(conta);
+    setReceiveCashAccountId(cashAccounts.length === 1 ? String(cashAccounts[0].id) : '');
     setReceberDialogOpen(true);
   };
 
-  const confirmMarcarRecebido = async () => {
+  const closeReceberDialog = () => {
+    setReceberDialogOpen(false);
+    setContaToReceber(null);
+    setReceiveCashAccountId('');
+  };
+
+  const confirmGerarReceitaVinculada = async () => {
     if (!contaToReceber) {
       return;
     }
 
+    if (!receiveCashAccountId) {
+      toast.error('Selecione a conta caixa para gerar a receita.');
+      return;
+    }
+
+    setIsReceiving(true);
+
     try {
-      const payload = contaToReceber.paymentTypeId ? { paymentTypeId: contaToReceber.paymentTypeId } : {};
+      const response = await fetch(`${getApiBaseUrl()}/api/incomes`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          description: contaToReceber.descricao,
+          accountTypeId: contaToReceber.accountTypeId,
+          cashAccountId: Number(receiveCashAccountId),
+          value: contaToReceber.valor,
+          incomeDate: contaToReceber.dataPagamento || new Date().toISOString().slice(0, 10),
+          accountReceivableId: contaToReceber.id,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao gerar receita vinculada.');
+      }
+
+      toast.success('Receita vinculada gerada com sucesso.');
+      closeReceberDialog();
+      await fetchContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar receita vinculada.');
+    } finally {
+      setIsReceiving(false);
+    }
+  };
+
+  const confirmMarcarRecebido = async (generateIncome: boolean) => {
+    if (!contaToReceber) {
+      return;
+    }
+
+    if (contaToReceber.status === 'recebido') {
+      if (generateIncome) {
+        await confirmGerarReceitaVinculada();
+      }
+      return;
+    }
+
+    if (generateIncome && !receiveCashAccountId) {
+      toast.error('Selecione a conta caixa para gerar a receita.');
+      return;
+    }
+
+    setIsReceiving(true);
+
+    try {
+      const payload = {
+        ...(contaToReceber.paymentTypeId ? { paymentTypeId: contaToReceber.paymentTypeId } : {}),
+        ...(generateIncome ? { generateIncome: true, cashAccountId: Number(receiveCashAccountId) } : {}),
+      };
       const response = await fetch(`${getApiBaseUrl()}/api/accounts-receivable/${contaToReceber.id}/receive`, {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -897,12 +1059,13 @@ export default function ContasReceber() {
         throw new Error(result?.error || 'Erro ao marcar conta como recebida.');
       }
 
-      toast.success('Conta marcada como recebida.');
-      setReceberDialogOpen(false);
-      setContaToReceber(null);
+      toast.success(generateIncome ? 'Conta marcada como recebida e receita gerada com sucesso.' : 'Conta marcada como recebida.');
+      closeReceberDialog();
       await fetchContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao marcar conta como recebida.');
+    } finally {
+      setIsReceiving(false);
     }
   };
 
@@ -930,6 +1093,22 @@ export default function ContasReceber() {
     Boolean(dataFimFiltro);
 
   const originsWithAccounts = origins;
+  const originFilterOptions = [
+    { value: 'todas', label: 'Todas' },
+    ...originsWithAccounts
+      .map((origin) => ({
+        value: String(origin.id),
+        label: origin.description || `Origem ${origin.id}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })),
+  ];
+  const accountTypeFilterOptions = [
+    { value: 'todos', label: 'Todos' },
+    ...accountTypes.map((item) => ({
+      value: String(item.id),
+      label: item.description,
+    })),
+  ];
   const sortedContas = contas;
   const totalPendente = summary.pendente.valor;
   const totalPago = summary.recebido.valor;
@@ -1430,36 +1609,28 @@ export default function ContasReceber() {
 
               <div className="space-y-2">
                 <Label htmlFor="accountTypeFiltro" className="dark:text-slate-300">Tipo de Conta</Label>
-                <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-                    {accountTypes.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
-                        {item.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="accountTypeFiltro"
+                  value={accountTypeFiltro}
+                  options={accountTypeFilterOptions}
+                  onValueChange={setAccountTypeFiltro}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar tipo de conta..."
+                  emptyMessage="Nenhum tipo de conta encontrado."
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="originFiltro" className="dark:text-slate-300">Origem</Label>
-                <Select value={originFiltro} onValueChange={setOriginFiltro}>
-                  <SelectTrigger id="originFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas" className="cursor-pointer">Todas</SelectItem>
-                    {originsWithAccounts.map((origin) => (
-                      <SelectItem key={origin.id} value={String(origin.id)} className="cursor-pointer">
-                        {origin.description || `Origem ${origin.id}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="originFiltro"
+                  value={originFiltro}
+                  options={originFilterOptions}
+                  onValueChange={setOriginFiltro}
+                  placeholder="Todas"
+                  searchPlaceholder="Buscar origem..."
+                  emptyMessage="Nenhuma origem encontrada."
+                />
               </div>
 
               <div className="space-y-2">
@@ -1557,7 +1728,23 @@ export default function ContasReceber() {
                       <TableCell>{conta.dataVencimento ? formatDateBR(conta.dataVencimento) : '-'}</TableCell>
                       <TableCell>{conta.formaPgto}</TableCell>
                       <TableCell>{conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                      <TableCell>{getStatusBadge(conta.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {getStatusBadge(conta.status)}
+                          {conta.status === 'recebido' && !conta.linkedIncomeId && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 cursor-pointer p-0 text-slate-500 hover:bg-gray-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+                              title="Conta recebida sem receita vinculada"
+                              onClick={() => handleGerarReceitaPendente(conta)}
+                            >
+                              <CircleAlert className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         {conta.status === 'pendente' || conta.status === 'vencido' ? (
                           <Button
@@ -1581,7 +1768,7 @@ export default function ContasReceber() {
                           <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(conta)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1762,15 +1949,28 @@ export default function ContasReceber() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={originDialogOpen} onOpenChange={setOriginDialogOpen}>
+      <Dialog open={originDialogOpen} onOpenChange={(open) => {
+        setOriginDialogOpen(open);
+        if (!open) setSelectedOrigin(null);
+      }}>
         <DialogContent className="max-w-md dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Origem da Conta</DialogTitle>
             <DialogDescription>Conta gerada a partir da origem abaixo.</DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-blue-100 bg-blue-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
-            <Label className="dark:text-slate-300">Origem</Label>
-            <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOriginName}</p>
+          <div className="grid grid-cols-1 gap-4 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Código</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.id || '-'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Nome</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.description || '-'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Tipo</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.person === true || selectedOrigin?.person === 1 || selectedOrigin?.person === '1' || selectedOrigin?.person === 'true' ? 'Cliente' : 'Operação'}</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setOriginDialogOpen(false)}>
@@ -1780,19 +1980,92 @@ export default function ContasReceber() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={receberDialogOpen} onOpenChange={setReceberDialogOpen}>
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir esta conta a receber?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setContaToDelete(null);
+        }}
+        onConfirm={confirmDeleteConta}
+      />
+
+      <ConfirmActionDialog
+        open={receivedEditConfirmOpen}
+        title="Confirmar Alteração"
+        description="Esta conta já está recebida. Deseja salvar as alterações mesmo assim?"
+        confirmLabel="Salvar Alterações"
+        isLoading={isSaving}
+        onOpenChange={(open) => {
+          setReceivedEditConfirmOpen(open);
+          if (!open) receivedEditConfirmedRef.current = false;
+        }}
+        onConfirm={confirmSaveReceivedConta}
+      />
+
+      <AlertDialog open={receberDialogOpen} onOpenChange={(open) => (open ? setReceberDialogOpen(true) : closeReceberDialog())}>
         <AlertDialogContent className="dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Recebimento</AlertDialogTitle>
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle>{contaToReceber?.status === 'recebido' ? 'Gerar Receita Vinculada' : 'Marcar Conta como Recebida'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja marcar esta conta como recebida? Esta ação irá atualizar o status e registrar a data de recebimento.
+              {contaToReceber?.status === 'recebido'
+                ? 'Esta conta já está recebida, mas ainda não possui receita vinculada. Deseja gerar a receita agora?'
+                : 'Deseja marcar esta conta como recebida e gerar uma receita vinculada?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMarcarRecebido} className="cursor-pointer bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155]">
-              Confirmar
-            </AlertDialogAction>
+          <div className="mt-2 space-y-4">
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#2f394a] dark:bg-[#273447]">
+              <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-300">
+                <span className="font-medium text-gray-700 dark:text-slate-200">Observação:</span>{' '}
+                A receita será criada automaticamente com os dados desta conta a receber e ficará vinculada a ela.
+              </p>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#2f394a] dark:bg-[#273447]">
+              <div className="space-y-2">
+                <Label htmlFor="contaCaixaReceita" className="dark:text-slate-300">Conta Caixa para Receita</Label>
+                <Select value={receiveCashAccountId} onValueChange={setReceiveCashAccountId}>
+                  <SelectTrigger id="contaCaixaReceita" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                    <SelectValue placeholder="Selecione a conta caixa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cashAccounts.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  A conta caixa é usada somente se escolher gerar a receita vinculada.
+                </p>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter className="mt-4 gap-2 sm:justify-end">
+            <AlertDialogCancel disabled={isReceiving} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">Cancelar</AlertDialogCancel>
+            {contaToReceber?.status !== 'recebido' && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isReceiving}
+                onClick={() => confirmMarcarRecebido(false)}
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              >
+                Receber sem Gerar
+              </Button>
+            )}
+            <Button
+              type="button"
+              disabled={isReceiving}
+              onClick={() => confirmMarcarRecebido(true)}
+              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155]"
+            >
+              {contaToReceber?.status === 'recebido' ? 'Gerar Receita' : 'Receber e Gerar Receita'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Switch } from './ui/switch';
 import { AUTH_USER_KEY, getAuthToken } from '../lib/auth';
 import { PROFILE_IDS, canManageSystem, getRoleByProfileId, type UserRole } from '../lib/profileRoles';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type Profile = {
   id: number;
@@ -150,9 +151,12 @@ export default function Usuarios() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [editingUsuario, setEditingUsuario] = useState<Usuario | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [usuarioToDelete, setUsuarioToDelete] = useState<Usuario | null>(null);
   const [formData, setFormData] = useState<UsuarioForm>(DEFAULT_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof Usuario | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -530,9 +534,7 @@ export default function Usuarios() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    const usuario = usuarios.find((item) => item.id === id);
-
+  const handleDelete = (usuario: Usuario) => {
     if (!ensureCanManageUsers()) {
       return;
     }
@@ -552,12 +554,19 @@ export default function Usuarios() {
       return;
     }
 
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) {
+    setUsuarioToDelete(usuario);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteUsuario = async () => {
+    if (!usuarioToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/users/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/users/${usuarioToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -568,9 +577,13 @@ export default function Usuarios() {
       }
 
       toast.success('Usuário excluído com sucesso.');
+      setDeleteDialogOpen(false);
+      setUsuarioToDelete(null);
       await fetchUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir usuário.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1007,7 +1020,7 @@ export default function Usuarios() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleDelete(usuario.id)}
+                                onClick={() => handleDelete(usuario)}
                                 className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
                                 title="Excluir"
                               >
@@ -1179,6 +1192,20 @@ export default function Usuarios() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir este usuário?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setUsuarioToDelete(null);
+        }}
+        onConfirm={confirmDeleteUsuario}
+      />
     </div>
   );
 }

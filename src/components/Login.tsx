@@ -130,18 +130,6 @@ export default function Login({ onLogin }: LoginProps) {
             {errorMessage && (
               <p className="text-sm text-red-600 text-center dark:text-red-400">{errorMessage}</p>
             )}
-            <div className="text-center">
-              <a 
-                href="#" 
-                className="text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert('Funcionalidade de recuperação de senha em desenvolvimento');
-                }}
-              >
-                Esqueceu a senha?
-              </a>
-            </div>
           </form>
         </CardContent>
         <div className="pb-6 text-center text-gray-500 dark:text-slate-400">

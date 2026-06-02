@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { getAuthToken } from '../lib/auth';
+import SearchableSelect from './SearchableSelect';
 
 type ApiPaymentType = {
   id: number;
@@ -136,6 +137,35 @@ const isTrue = (value: boolean | number | string | null | undefined) => value ==
 const normalizeDateInput = (value?: string | null) => {
   if (!value) return '';
   return value.slice(0, 10);
+};
+
+const formatDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultAccountsDateRange = () => {
+  const startDate = new Date();
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 30);
+
+  return {
+    start: formatDateInput(startDate),
+    end: formatDateInput(endDate),
+  };
+};
+
+const getDefaultMovementsDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 30);
+
+  return {
+    start: formatDateInput(startDate),
+    end: formatDateInput(endDate),
+  };
 };
 
 const formatDateBR = (value: string) => {
@@ -297,6 +327,8 @@ const mapExpenseToMovementItem = (
 };
 
 export default function Relatorios() {
+  const defaultAccountsDateRange = useMemo(() => getDefaultAccountsDateRange(), []);
+  const defaultMovementsDateRange = useMemo(() => getDefaultMovementsDateRange(), []);
   const [macroRelatorio, setMacroRelatorio] = useState('');
   const [tipoRelatorio, setTipoRelatorio] = useState('geral');
   const [tipoRelatorioMovimento, setTipoRelatorioMovimento] = useState('geral');
@@ -304,17 +336,17 @@ export default function Relatorios() {
   const [tipoPagamento, setTipoPagamento] = useState('todos');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [tipoData, setTipoData] = useState('efetiva');
-  const [dataInicio, setDataInicio] = useState('');
-  const [dataFim, setDataFim] = useState('');
+  const [dataInicio, setDataInicio] = useState(defaultAccountsDateRange.start);
+  const [dataFim, setDataFim] = useState(defaultAccountsDateRange.end);
   const [ordernarPor, setOrdernarPor] = useState('dataEfetiva');
   const [tipoOrdenacao, setTipoOrdenacao] = useState('crescente');
-  const [origemSelecionada, setOrigemSelecionada] = useState('todas');
+  const [origemSelecionada, setOrigemSelecionada] = useState('');
   const [filtroPessoa, setFiltroPessoa] = useState<'pessoa' | 'nao-pessoa' | 'todos'>('todos');
   const [movimentoFiltro, setMovimentoFiltro] = useState<'todos' | 'receita' | 'despesa'>('todos');
   const [tipoContaMovimento, setTipoContaMovimento] = useState('todos');
   const [contaCaixaMovimento, setContaCaixaMovimento] = useState('todas');
-  const [dataInicioMovimento, setDataInicioMovimento] = useState('');
-  const [dataFimMovimento, setDataFimMovimento] = useState('');
+  const [dataInicioMovimento, setDataInicioMovimento] = useState(defaultMovementsDateRange.start);
+  const [dataFimMovimento, setDataFimMovimento] = useState(defaultMovementsDateRange.end);
   const [ordernarMovimentoPor, setOrdernarMovimentoPor] = useState('data');
   const [tipoOrdenacaoMovimento, setTipoOrdenacaoMovimento] = useState('crescente');
   const [paymentTypes, setPaymentTypes] = useState<ApiPaymentType[]>([]);
@@ -329,6 +361,9 @@ export default function Relatorios() {
   const [relatorioMovimentoGerado, setRelatorioMovimentoGerado] = useState(false);
   const [pdfPrintHtml, setPdfPrintHtml] = useState('');
   const [pdfPrintTitle, setPdfPrintTitle] = useState('');
+  const [reportVolumeWarningOpen, setReportVolumeWarningOpen] = useState(false);
+  const [pendingAccountsReportData, setPendingAccountsReportData] = useState<ReportItem[] | null>(null);
+  const [pendingMovementsReportData, setPendingMovementsReportData] = useState<MovementItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchJson = async <T,>(path: string): Promise<T> => {
@@ -393,12 +428,28 @@ export default function Relatorios() {
     setTipoRelatorio(value);
     setRelatorioGerado(false);
     setDadosFiltrados(dadosBase);
+
+    if (value === 'origem') {
+      setDataInicio('');
+      setDataFim('');
+      return;
+    }
+
+    if (value === 'geral' && !dataInicio && !dataFim) {
+      setDataInicio(defaultAccountsDateRange.start);
+      setDataFim(defaultAccountsDateRange.end);
+    }
   };
 
   const handleTipoRelatorioMovimentoChange = (value: string) => {
     setTipoRelatorioMovimento(value);
     setRelatorioMovimentoGerado(false);
     setMovimentosFiltrados(movimentosBase);
+
+    if ((value === 'geral' || value === 'livro-caixa') && !dataInicioMovimento && !dataFimMovimento) {
+      setDataInicioMovimento(defaultMovementsDateRange.start);
+      setDataFimMovimento(defaultMovementsDateRange.end);
+    }
   };
 
   const getStatusBadge = (item: ReportItem) => {
@@ -412,6 +463,16 @@ export default function Relatorios() {
       default:
         return <Badge className="dark:bg-[#273447] dark:text-slate-200">{item.statusLabel}</Badge>;
     }
+  };
+
+  const finalizarGeracaoRelatorioContas = (dados: ReportItem[]) => {
+    setDadosFiltrados(dados);
+    setRelatorioGerado(true);
+  };
+
+  const finalizarGeracaoRelatorioMovimentos = (dados: MovementItem[]) => {
+    setMovimentosFiltrados(dados);
+    setRelatorioMovimentoGerado(true);
   };
 
   const handleGerarRelatorio = () => {
@@ -443,11 +504,13 @@ export default function Relatorios() {
     }
 
     if (tipoRelatorio === 'origem') {
-      dados = dados.filter((item) => Boolean(item.originId));
-
-      if (origemSelecionada !== 'todas') {
-        dados = dados.filter((item) => String(item.originId) === origemSelecionada);
+      if (!origemSelecionada) {
+        toast.error('Selecione uma origem para gerar o relatório.');
+        return;
       }
+
+      dados = dados.filter((item) => Boolean(item.originId));
+      dados = dados.filter((item) => String(item.originId) === origemSelecionada);
 
       if (filtroPessoa !== 'todos') {
         dados = dados.filter((item) => (filtroPessoa === 'pessoa' ? item.pessoa : !item.pessoa));
@@ -489,8 +552,14 @@ export default function Relatorios() {
       return 0;
     });
 
-    setDadosFiltrados(dados);
-    setRelatorioGerado(true);
+    if (dados.length >= 50) {
+      setPendingAccountsReportData(dados);
+      setPendingMovementsReportData(null);
+      setReportVolumeWarningOpen(true);
+      return;
+    }
+
+    finalizarGeracaoRelatorioContas(dados);
   };
 
   const handleGerarRelatorioMovimento = () => {
@@ -536,8 +605,14 @@ export default function Relatorios() {
       return 0;
     });
 
-    setMovimentosFiltrados(dados);
-    setRelatorioMovimentoGerado(true);
+    if (dados.length >= 200) {
+      setPendingMovementsReportData(dados);
+      setPendingAccountsReportData(null);
+      setReportVolumeWarningOpen(true);
+      return;
+    }
+
+    finalizarGeracaoRelatorioMovimentos(dados);
   };
 
   const handleGerarLivroCaixa = () => {
@@ -552,8 +627,14 @@ export default function Relatorios() {
       return a.codigo - b.codigo;
     });
 
-    setMovimentosFiltrados(dados);
-    setRelatorioMovimentoGerado(true);
+    if (dados.length >= 200) {
+      setPendingMovementsReportData(dados);
+      setPendingAccountsReportData(null);
+      setReportVolumeWarningOpen(true);
+      return;
+    }
+
+    finalizarGeracaoRelatorioMovimentos(dados);
   };
 
   const limparFiltrosContas = ({ incluirOrigem = false }: { incluirOrigem?: boolean } = {}) => {
@@ -567,7 +648,7 @@ export default function Relatorios() {
     setTipoOrdenacao('crescente');
 
     if (incluirOrigem) {
-      setOrigemSelecionada('todas');
+      setOrigemSelecionada('');
       setFiltroPessoa('todos');
     }
 
@@ -661,6 +742,19 @@ export default function Relatorios() {
       return movimentoFiltro === 'receita' ? accountType.type === 'Receita' : accountType.type === 'Despesa';
     });
   }, [accountTypes, movimentoFiltro]);
+
+  const accountTypeMovimentoOptions = useMemo(
+    () => [
+      { value: 'todos', label: 'Todos' },
+      ...accountTypesMovimento
+        .map((type) => ({
+          value: String(type.id),
+          label: type.description || `Tipo ${type.id}`,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    ],
+    [accountTypesMovimento],
+  );
 
   const getAccountsGeneralTitle = () => {
     if (moduloFiltro === 'pagar') return 'Relatório Geral - Contas a Pagar';
@@ -1081,6 +1175,42 @@ export default function Relatorios() {
     const originIds = new Set(dadosBase.map((item) => item.originId).filter((id): id is number => Boolean(id)));
     return origins.filter((origin) => originIds.has(origin.id));
   }, [dadosBase, origins]);
+
+  const origensFiltradasPorOrigem = useMemo(() => {
+    const expectedCategory = moduloFiltro === 'pagar' ? '1' : moduloFiltro === 'receber' ? '2' : '';
+
+    return origensComContas
+      .filter((origin) => {
+        const originCategory = origin.category == null ? '' : String(origin.category);
+        const matchesModule =
+          moduloFiltro === 'todos' ||
+          (originCategory
+            ? originCategory === expectedCategory
+            : dadosBase.some((item) => item.originId === origin.id && item.modulo === moduloFiltro));
+        const matchesPerson = filtroPessoa === 'todos' || (filtroPessoa === 'pessoa' ? isTrue(origin.person) : !isTrue(origin.person));
+
+        return matchesModule && matchesPerson;
+      })
+      .sort((a, b) => (a.description || `Origem ${a.id}`).localeCompare(b.description || `Origem ${b.id}`));
+  }, [dadosBase, filtroPessoa, moduloFiltro, origensComContas]);
+
+  const origemOptions = useMemo(
+    () =>
+      origensFiltradasPorOrigem.map((origin) => ({
+        value: String(origin.id),
+        label: origin.description || `Origem ${origin.id}`,
+      })),
+    [origensFiltradasPorOrigem],
+  );
+
+  useEffect(() => {
+    if (!origemSelecionada) return;
+
+    const origemAindaValida = origensFiltradasPorOrigem.some((origin) => String(origin.id) === origemSelecionada);
+    if (!origemAindaValida) {
+      setOrigemSelecionada('');
+    }
+  }, [origemSelecionada, origensFiltradasPorOrigem]);
 
   const resumoPorOrigem = useMemo(() => {
   const resumo = new Map<string, OriginSummary>();
@@ -1955,21 +2085,23 @@ export default function Relatorios() {
     setDataFimMovimento(value);
   };
 
-  const renderCommonFilters = (suffix = '') => (
+  const renderCommonFilters = (suffix = '', incluirModulo = true) => (
     <>
-      <div className="space-y-2">
-        <Label htmlFor={`modulo${suffix}`} className="dark:text-slate-300">Módulo</Label>
-        <Select value={moduloFiltro} onValueChange={(value: 'todos' | 'pagar' | 'receber') => setModuloFiltro(value)}>
-          <SelectTrigger id={`modulo${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-            <SelectItem value="pagar" className="cursor-pointer">Contas a Pagar</SelectItem>
-            <SelectItem value="receber" className="cursor-pointer">Contas a Receber</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {incluirModulo && (
+        <div className="space-y-2">
+          <Label htmlFor={`modulo${suffix}`} className="dark:text-slate-300">Módulo</Label>
+          <Select value={moduloFiltro} onValueChange={(value: 'todos' | 'pagar' | 'receber') => setModuloFiltro(value)}>
+            <SelectTrigger id={`modulo${suffix}`} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
+              <SelectItem value="pagar" className="cursor-pointer">Contas a Pagar</SelectItem>
+              <SelectItem value="receber" className="cursor-pointer">Contas a Receber</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor={`tipoPagamento${suffix}`} className="dark:text-slate-300">Tipo de Pagamento</Label>
@@ -2089,19 +2221,15 @@ export default function Relatorios() {
 
       <div className="space-y-2">
         <Label htmlFor="tipoContaMovimento" className="dark:text-slate-300">Tipo de Conta</Label>
-        <Select value={tipoContaMovimento} onValueChange={setTipoContaMovimento}>
-          <SelectTrigger id="tipoContaMovimento" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-            {accountTypesMovimento.map((type) => (
-              <SelectItem key={type.id} value={String(type.id)} className="cursor-pointer">
-                {type.description}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          id="tipoContaMovimento"
+          value={tipoContaMovimento}
+          options={accountTypeMovimentoOptions}
+          onValueChange={setTipoContaMovimento}
+          placeholder="Selecione um tipo de conta"
+          searchPlaceholder="Buscar tipo de conta..."
+          emptyMessage="Nenhum tipo de conta encontrado."
+        />
       </div>
 
       <div className="space-y-2">
@@ -2238,6 +2366,63 @@ export default function Relatorios() {
 
   return (
     <div className="space-y-6">
+      <Dialog
+        open={reportVolumeWarningOpen}
+        onOpenChange={(open) => {
+          setReportVolumeWarningOpen(open);
+          if (!open) {
+            setPendingAccountsReportData(null);
+            setPendingMovementsReportData(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md min-h-[300px] gap-6 dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
+          <DialogHeader className="text-center">
+            <DialogTitle className="dark:text-slate-100">Aviso do Relatório</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex min-h-[128px] flex-col items-center justify-center rounded-md border border-gray-200 bg-gray-50 px-6 py-5 text-center text-sm dark:border-[#2f394a] dark:bg-[#243043]">
+            <p className="mb-3 font-bold text-orange-700 dark:text-[#f9c87b]">IMPORTANTE</p>
+            <p className="font-semibold text-gray-800 dark:text-slate-100">Relatório com muitos dados</p>
+            <p className="mt-3 leading-relaxed text-gray-600 dark:text-slate-300">
+              A visualização pode ficar mais lenta.
+              <br />
+              Use filtros de data para melhorar a navegação.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-center">
+            <Button
+              variant="outline"
+              className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              onClick={() => {
+                setReportVolumeWarningOpen(false);
+                setPendingAccountsReportData(null);
+                setPendingMovementsReportData(null);
+              }}
+            >
+              Ajustar Filtros
+            </Button>
+            <Button
+              className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white"
+              onClick={() => {
+                if (pendingAccountsReportData) {
+                  finalizarGeracaoRelatorioContas(pendingAccountsReportData);
+                }
+                if (pendingMovementsReportData) {
+                  finalizarGeracaoRelatorioMovimentos(pendingMovementsReportData);
+                }
+                setReportVolumeWarningOpen(false);
+                setPendingAccountsReportData(null);
+                setPendingMovementsReportData(null);
+              }}
+            >
+              Gerar Mesmo Assim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={Boolean(pdfPrintHtml)}
         onOpenChange={(open) => {
@@ -2404,6 +2589,20 @@ export default function Relatorios() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-2">
+                      <Label htmlFor="moduloOrigem" className="dark:text-slate-300">Módulo</Label>
+                      <Select value={moduloFiltro} onValueChange={(value: 'todos' | 'pagar' | 'receber') => setModuloFiltro(value)}>
+                        <SelectTrigger id="moduloOrigem" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
+                          <SelectItem value="pagar" className="cursor-pointer">Contas a Pagar</SelectItem>
+                          <SelectItem value="receber" className="cursor-pointer">Contas a Receber</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label htmlFor="filtroPessoa" className="dark:text-slate-300">Tipo de Origem</Label>
                       <Select value={filtroPessoa} onValueChange={(value: 'pessoa' | 'nao-pessoa' | 'todos') => setFiltroPessoa(value)}>
                         <SelectTrigger id="filtroPessoa" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
@@ -2418,23 +2617,21 @@ export default function Relatorios() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="origem" className="dark:text-slate-300">Origem Específica</Label>
-                      <Select value={origemSelecionada} onValueChange={setOrigemSelecionada}>
-                        <SelectTrigger id="origem" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                          <SelectValue placeholder="Selecione uma origem" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todas" className="cursor-pointer">Todas</SelectItem>
-                          {origensComContas.map((origem) => (
-                            <SelectItem key={origem.id} value={String(origem.id)} className="cursor-pointer">
-                              {origem.description || `Origem ${origem.id}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="origem" className="dark:text-slate-300">
+                        Origem Específica <span className="text-red-500 dark:text-[#e7a0a9]">*</span>
+                      </Label>
+                      <SearchableSelect
+                        id="origem"
+                        value={origemSelecionada}
+                        options={origemOptions}
+                        onValueChange={setOrigemSelecionada}
+                        placeholder="Selecione uma origem"
+                        searchPlaceholder="Buscar origem..."
+                        emptyMessage="Nenhuma origem encontrada."
+                      />
                     </div>
 
-                    {renderCommonFilters('2')}
+                    {renderCommonFilters('2', false)}
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-6">

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { toast } from 'sonner@2.0.3';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
 
@@ -39,8 +40,13 @@ type ApiIncome = {
   incomeDate?: string | null;
   accountTypeId?: number | null;
   cashAccountId?: number | null;
+  accountReceivableId?: number | null;
   accountType?: ApiAccountType;
   cashAccount?: ApiCashAccount;
+  accountReceivable?: {
+    id: number;
+    description?: string | null;
+  } | null;
 };
 
 type Receita = {
@@ -51,6 +57,8 @@ type Receita = {
   contaCaixa: string;
   accountTypeId: number | null;
   cashAccountId: number | null;
+  accountReceivableId: number | null;
+  accountReceivableDescription: string;
   valor: number;
   dataReceita: string;
 };
@@ -181,6 +189,9 @@ const getAuthHeaders = () => {
   };
 };
 
+const readonlyDisplayFieldClassName =
+  'flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-input-background px-3 py-1 text-base text-gray-400 transition-[color,box-shadow] md:text-sm dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-300';
+
 const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
   event.currentTarget.setCustomValidity('');
 };
@@ -197,6 +208,8 @@ const mapApiIncomeToReceita = (income: ApiIncome): Receita => ({
   contaCaixa: income.cashAccount?.name || '-',
   accountTypeId: income.accountTypeId ?? null,
   cashAccountId: income.cashAccountId ?? null,
+  accountReceivableId: income.accountReceivableId ?? null,
+  accountReceivableDescription: income.accountReceivable?.description || '',
   valor: Number(income.value || 0),
   dataReceita: normalizeDateInput(income.incomeDate),
 });
@@ -215,12 +228,15 @@ export default function Receitas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedReceita, setSelectedReceita] = useState<Receita | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [receitaToDelete, setReceitaToDelete] = useState<Receita | null>(null);
   const [editingReceita, setEditingReceita] = useState<Receita | null>(null);
   const [accountTypes, setAccountTypes] = useState<ApiAccountType[]>([]);
   const [cashAccounts, setCashAccounts] = useState<ApiCashAccount[]>([]);
   const [formData, setFormData] = useState<ReceitaForm>(DEFAULT_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof Receita | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -494,13 +510,20 @@ export default function Receitas() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta receita?')) {
+  const handleDelete = (receita: Receita) => {
+    setReceitaToDelete(receita);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteReceita = async () => {
+    if (!receitaToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/incomes/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/incomes/${receitaToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -509,9 +532,13 @@ export default function Receitas() {
         throw new Error(result?.error || 'Erro ao excluir receita.');
       }
       toast.success('Receita excluída com sucesso.');
+      setDeleteDialogOpen(false);
+      setReceitaToDelete(null);
       await fetchReceitas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir receita.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -809,6 +836,18 @@ export default function Receitas() {
                         className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                       />
                     </div>
+                    {editingReceita?.accountReceivableId && (
+                      <div className="col-span-full space-y-2">
+                        <Label className="dark:text-slate-300">
+                          Origem da Receita{' '}
+                          <span className="text-[11px] font-normal italic text-gray-400 dark:text-slate-500">(Campo não Editável)</span>
+                        </Label>
+                        <div className={readonlyDisplayFieldClassName}>
+                          Conta a Receber Código: {editingReceita.accountReceivableId}
+                          {editingReceita.accountReceivableDescription ? ` - ${editingReceita.accountReceivableDescription}` : ''}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
@@ -934,9 +973,26 @@ export default function Receitas() {
                   sortedReceitas.map((receita) => (
                     <TableRow key={receita.id} className="dark:hover:bg-[#273447]">
                       <TableCell>{receita.id}</TableCell>
-                      <TableCell>{receita.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge className="bg-green-100 text-green-700 dark:bg-[#273447] dark:text-[#a1a1aa]">{receita.tipoConta}</Badge>
+                        <div className="flex items-center gap-2">
+                          <span>{receita.descricao || '-'}</span>
+                          {receita.accountReceivableId && (
+                            <button
+                              type="button"
+                              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-[#8ab4f8] dark:hover:bg-[#314155] dark:hover:text-[#a7c5fb]"
+                              title={`Gerada a partir da Conta a Receber #${receita.accountReceivableId}`}
+                              onClick={() => {
+                                const originText = `Gerada a partir da Conta a Receber #${receita.accountReceivableId}${receita.accountReceivableDescription ? ` (${receita.accountReceivableDescription})` : ''}`;
+                                toast.info(originText);
+                              }}
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="!bg-gray-100 !text-slate-500 dark:!bg-[#273447] dark:!text-zinc-400">{receita.tipoConta}</Badge>
                       </TableCell>
                       <TableCell>{receita.contaCaixa}</TableCell>
                       <TableCell className="text-green-600 dark:text-[#8bd8b1]">{receita.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
@@ -949,7 +1005,7 @@ export default function Receitas() {
                           <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(receita)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(receita.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(receita)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1100,6 +1156,15 @@ export default function Receitas() {
                   <p className="text-gray-900 dark:text-slate-100">{selectedReceita.dataReceita ? formatDateBR(selectedReceita.dataReceita) : '-'}</p>
                 </div>
               </div>
+              {selectedReceita.accountReceivableId && (
+                <div>
+                  <Label className="text-gray-500 dark:text-slate-300">Origem da Receita</Label>
+                  <p className="text-gray-900 dark:text-slate-100">
+                    Conta a Receber Código: {selectedReceita.accountReceivableId}
+                    {selectedReceita.accountReceivableDescription ? ` - ${selectedReceita.accountReceivableDescription}` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -1109,6 +1174,20 @@ export default function Receitas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir esta receita?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setReceitaToDelete(null);
+        }}
+        onConfirm={confirmDeleteReceita}
+      />
     </div>
   );
 }

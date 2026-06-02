@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Eye, Filter, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Eye, Filter, Loader2, Maximize2, RotateCcw, ShieldCheck, WrapText } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { AUTH_TOKEN_KEY } from '../lib/auth';
 import { Badge } from './ui/badge';
@@ -103,7 +103,24 @@ const ACTIVATION_ACTION_OPTION: FilterOption = { value: 'ATIVACAO_INATIVACAO', l
 const FINANCIAL_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_FINANCEIRO', label: 'Status Financeiro' };
 const PAYABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_PAGAMENTO', label: 'Status Pago/Não Pago' };
 const RECEIVABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_RECEBIMENTO', label: 'Status Recebido/Não Recebido' };
+const BACKUP_ACTION_OPTION: FilterOption = { value: 'BACKUP', label: 'Backup' };
 const ACTIVATION_MODULES = new Set(['USUARIOS', 'TIPOS_PAGAMENTO', 'PLANO_CONTAS']);
+const INFO_STATUS_MODULES = new Set(['MANUTENCAO']);
+
+const getStatusOptionsForModule = (module: string): FilterOption[] => {
+  const options = [
+    { value: 'todos', label: 'Todos' },
+    { value: 'SUCESSO', label: 'Sucesso' },
+  ];
+
+  if (module === 'todos' || INFO_STATUS_MODULES.has(module)) {
+    options.push({ value: 'INFO', label: 'Informativo' });
+  }
+
+  options.push({ value: 'ERRO', label: 'Erro' });
+
+  return options;
+};
 
 const getActionOptionsForModule = (module: string): FilterOption[] => {
   if (module === 'todos') {
@@ -112,6 +129,10 @@ const getActionOptionsForModule = (module: string): FilterOption[] => {
 
   if (module === 'LOGIN') {
     return [{ value: 'todos', label: 'Todos' }, LOGIN_ACTION_OPTION];
+  }
+
+  if (module === 'BACKUP') {
+    return [{ value: 'todos', label: 'Todos' }, BACKUP_ACTION_OPTION];
   }
 
   if (module === 'CONTAS_PAGAR') {
@@ -124,6 +145,10 @@ const getActionOptionsForModule = (module: string): FilterOption[] => {
 
   if (ACTIVATION_MODULES.has(module)) {
     return [...BASE_ACTION_OPTIONS, ACTIVATION_ACTION_OPTION];
+  }
+
+  if (module === 'MANUTENCAO') {
+    return [{ value: 'todos', label: 'Todos' }, { value: 'EXCLUSAO', label: 'Exclusão' }, BACKUP_ACTION_OPTION];
   }
 
   return BASE_ACTION_OPTIONS;
@@ -191,7 +216,8 @@ const formatModuleLabel = (value: string) => {
     CONTAS_RECEBER: 'Contas a Receber',
     RECEITAS: 'Receitas',
     DESPESAS: 'Despesas',
-    BACKUP: 'Backup',
+    BACKUP: 'Manutenção/Backups',
+    MANUTENCAO: 'Manutenção/Logs',
   };
 
   if (labels[value]) return labels[value];
@@ -207,6 +233,7 @@ const formatModuleLabel = (value: string) => {
 const getActionLabel = (value: string | null) => {
   if (!value) return '-';
 
+  if (value.includes('BACKUP')) return 'Backup';
   if (value.includes('LOGIN')) return 'Login';
   if (value.includes('CREATE') || value.includes('CADASTRO')) return 'Cadastro';
   if (value.includes('DELETE') || value.includes('REMOVE') || value.includes('EXCLUSAO') || value.includes('EXCLUSÃO')) return 'Exclusão';
@@ -230,8 +257,14 @@ const getStatusBadge = (status: string | null) => {
     return <Badge className="bg-red-100 text-red-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#e7a0a9]">Erro</Badge>;
   }
 
+  if (status === 'INFO') {
+    return <Badge className="bg-blue-100 text-blue-700 dark:border-[#2f394a] dark:bg-[#273447] dark:text-[#7fb7e8]">Informativo</Badge>;
+  }
+
   return <Badge className="bg-gray-100 text-slate-600 dark:border-[#2f394a] dark:bg-[#273447] dark:text-slate-300">{status || '-'}</Badge>;
 };
+
+const scrollAreaClassName = '[&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-corner]:bg-gray-50 [&::-webkit-scrollbar-thumb]:cursor-default [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-white [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:cursor-default [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent dark:[&::-webkit-scrollbar-corner]:bg-[#273447] dark:[&::-webkit-scrollbar-thumb]:border-[#273447] dark:[&::-webkit-scrollbar-thumb]:bg-[#4b5b70]';
 
 export default function Auditoria({ onBack }: AuditoriaProps) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -243,6 +276,8 @@ export default function Auditoria({ onBack }: AuditoriaProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [fullDataModal, setFullDataModal] = useState<{ title: string; content: string } | null>(null);
+  const [wrapFullDataLines, setWrapFullDataLines] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>('dataHora');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const scrollToPaginationBottomRef = useRef(false);
@@ -273,6 +308,7 @@ export default function Auditoria({ onBack }: AuditoriaProps) {
     [filterOptions.users],
   );
   const actionOptions = useMemo(() => getActionOptionsForModule(filters.module), [filters.module]);
+  const statusOptions = useMemo(() => getStatusOptionsForModule(filters.module), [filters.module]);
 
   const fetchLogs = async () => {
     setIsLoading(true);
@@ -386,11 +422,13 @@ export default function Auditoria({ onBack }: AuditoriaProps) {
 
   const handleModuleChange = (value: string) => {
     const nextActionOptions = getActionOptionsForModule(value);
+    const nextStatusOptions = getStatusOptionsForModule(value);
 
     setFilters((prev) => ({
       ...prev,
       module: value,
       action: nextActionOptions.some((action) => action.value === prev.action) ? prev.action : 'todos',
+      status: nextStatusOptions.some((status) => status.value === prev.status) ? prev.status : 'todos',
     }));
   };
 
@@ -552,9 +590,11 @@ export default function Auditoria({ onBack }: AuditoriaProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-                  <SelectItem value="SUCESSO" className="cursor-pointer">Sucesso</SelectItem>
-                  <SelectItem value="ERRO" className="cursor-pointer">Erro</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status.value} value={status.value} className="cursor-pointer">
+                      {status.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -796,21 +836,77 @@ export default function Auditoria({ onBack }: AuditoriaProps) {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label>Dados Antes</Label>
-                  <pre className="mt-2 max-h-72 overflow-auto rounded border bg-gray-50 p-3 text-xs dark:border-[#3b4658] dark:bg-[#273447]">
-                    {formatJson(selectedLog.dataBefore)}
-                  </pre>
+                  <div className="relative mt-2 min-w-0">
+                    {selectedLog.dataBefore && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-4 top-3 z-10 h-7 w-7 cursor-pointer border border-gray-200 bg-white p-0 text-slate-500 hover:bg-gray-100 hover:text-slate-700 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+                        title="Ver completo"
+                        onClick={() => setFullDataModal({ title: 'Dados Antes', content: formatJson(selectedLog.dataBefore) })}
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <pre className={`max-h-32 min-w-0 max-w-full overflow-auto rounded border bg-gray-50 p-3 pr-16 text-xs dark:border-[#3b4658] dark:bg-[#273447] ${scrollAreaClassName}`}>
+                      {formatJson(selectedLog.dataBefore)}
+                    </pre>
+                  </div>
                 </div>
                 <div>
                   <Label>Dados Depois</Label>
-                  <pre className="mt-2 max-h-72 overflow-auto rounded border bg-gray-50 p-3 text-xs dark:border-[#3b4658] dark:bg-[#273447]">
-                    {formatJson(selectedLog.dataAfter)}
-                  </pre>
+                  <div className="relative mt-2 min-w-0">
+                    {selectedLog.dataAfter && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-4 top-3 z-10 h-7 w-7 cursor-pointer border border-gray-200 bg-white p-0 text-slate-500 hover:bg-gray-100 hover:text-slate-700 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+                        title="Ver completo"
+                        onClick={() => setFullDataModal({ title: 'Dados Depois', content: formatJson(selectedLog.dataAfter) })}
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <pre className={`max-h-32 min-w-0 max-w-full overflow-auto rounded border bg-gray-50 p-3 pr-16 text-xs dark:border-[#3b4658] dark:bg-[#273447] ${scrollAreaClassName}`}>
+                      {formatJson(selectedLog.dataAfter)}
+                    </pre>
+                  </div>
                 </div>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" className="cursor-pointer" onClick={() => setDetailsOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(fullDataModal)} onOpenChange={(open) => !open && setFullDataModal(null)}>
+        <DialogContent className="max-w-4xl dark:border-[#2f394a] dark:bg-[#1f2937] dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle>{fullDataModal?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="relative min-w-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="absolute right-4 top-3 z-10 h-7 w-7 cursor-pointer bg-white p-0 text-slate-500 hover:bg-gray-100 hover:text-slate-700 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+              title={wrapFullDataLines ? 'Manter linhas' : 'Quebrar linhas'}
+              onClick={() => setWrapFullDataLines((prev) => !prev)}
+            >
+              <WrapText className="h-4 w-4" />
+            </Button>
+            <pre className={`max-h-[65vh] min-w-0 max-w-full overflow-auto rounded border bg-gray-50 p-4 pr-16 text-xs dark:border-[#3b4658] dark:bg-[#273447] ${scrollAreaClassName} ${wrapFullDataLines ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
+              {fullDataModal?.content || '-'}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setFullDataModal(null)}>
               Fechar
             </Button>
           </DialogFooter>

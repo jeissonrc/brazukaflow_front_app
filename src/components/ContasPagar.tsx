@@ -1,18 +1,20 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2, CircleAlert } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Textarea } from './ui/textarea';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
+import SearchableSelect from './SearchableSelect';
 
 type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
 
@@ -39,6 +41,19 @@ type ApiPaymentType = {
 type ApiOriginAccount = {
   id: number;
   description?: string | null;
+  category?: number | string | null;
+  person?: boolean | number | string | null;
+};
+
+type ApiCashAccount = {
+  id: number;
+  name: string;
+  status?: boolean | number | string | null;
+};
+
+type ApiLinkedExpense = {
+  id: number;
+  description?: string | null;
 };
 
 type ApiAccountsPayable = {
@@ -55,6 +70,7 @@ type ApiAccountsPayable = {
   originId?: number | null;
   accountType?: ApiAccountType;
   paymentType?: ApiPaymentType;
+  linkedExpenses?: ApiLinkedExpense[];
 };
 
 type ContaPagar = {
@@ -72,6 +88,8 @@ type ContaPagar = {
   accountTypeId: number | null;
   originId: number | null;
   origemConta: string;
+  linkedExpenseId: number | null;
+  linkedExpenseDescription: string;
   status: 'pendente' | 'pago' | 'vencido';
 };
 
@@ -273,6 +291,8 @@ const mapApiContaToConta = (conta: ApiAccountsPayable, originsById: Map<number, 
   accountTypeId: conta.accountTypeId ?? null,
   originId: conta.originId ?? null,
   origemConta: conta.originId ? originsById.get(conta.originId)?.description || `Origem ${conta.originId}` : '',
+  linkedExpenseId: conta.linkedExpenses?.[0]?.id ?? null,
+  linkedExpenseDescription: conta.linkedExpenses?.[0]?.description || '',
   status: getContaStatus(conta),
 });
 
@@ -294,7 +314,7 @@ export default function ContasPagar() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedConta, setSelectedConta] = useState<ContaPagar | null>(null);
   const [originDialogOpen, setOriginDialogOpen] = useState(false);
-  const [selectedOriginName, setSelectedOriginName] = useState('');
+  const [selectedOrigin, setSelectedOrigin] = useState<ApiOriginAccount | null>(null);
   const [editingConta, setEditingConta] = useState<ContaPagar | null>(null);
   const [accountTypes, setAccountTypes] = useState<ApiAccountType[]>([]);
   const [paymentTypes, setPaymentTypes] = useState<ApiPaymentType[]>([]);
@@ -306,6 +326,13 @@ export default function ContasPagar() {
   const [isMassSaving, setIsMassSaving] = useState(false);
   const [pagarDialogOpen, setPagarDialogOpen] = useState(false);
   const [contaToPagar, setContaToPagar] = useState<ContaPagar | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contaToDelete, setContaToDelete] = useState<ContaPagar | null>(null);
+  const [paidEditConfirmOpen, setPaidEditConfirmOpen] = useState(false);
+  const [payCashAccountId, setPayCashAccountId] = useState('');
+  const [cashAccounts, setCashAccounts] = useState<ApiCashAccount[]>([]);
+  const [isPaying, setIsPaying] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof ContaPagar | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -316,6 +343,7 @@ export default function ContasPagar() {
   const paymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massAccountTypeRequiredRef = useRef<HTMLSelectElement>(null);
   const massPaymentTypeRequiredRef = useRef<HTMLSelectElement>(null);
+  const paidEditConfirmedRef = useRef(false);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
 
@@ -442,7 +470,7 @@ export default function ContasPagar() {
     const items = isLegacyArrayResponse ? legacyPaginatedItems : apiItems.map((conta) => mapApiContaToConta(conta, originsById));
 
     setContas(items);
-    setOrigins(originsData);
+    setOrigins(originsData.filter((origin) => Number(origin.category) === 1));
     setPagination(isLegacyArrayResponse ? legacyPagination : responseData?.pagination || DEFAULT_PAGINATION);
     setSummary(isLegacyArrayResponse ? calculateAccountsSummary(legacyFilteredItems) : responseData?.summary || DEFAULT_SUMMARY);
     setIsLoading(false);
@@ -460,7 +488,7 @@ export default function ContasPagar() {
 
     const items = ((result.data || []) as ApiAccountType[]).filter(
       (item) => item.type === 'Despesa' && isActiveStatus(item.status),
-    );
+    ).sort((a, b) => a.description.localeCompare(b.description, 'pt-BR', { sensitivity: 'base' }));
     setAccountTypes(items);
   };
 
@@ -474,14 +502,30 @@ export default function ContasPagar() {
       throw new Error(result?.error || 'Erro ao carregar tipos de pagamento.');
     }
 
-    const items = ((result.data || []) as ApiPaymentType[]).filter((item) => isActiveStatus(item.status));
+    const items = ((result.data || []) as ApiPaymentType[])
+      .filter((item) => isActiveStatus(item.status))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
     setPaymentTypes(items);
+  };
+
+  const fetchCashAccounts = async () => {
+    const response = await fetch(`${getApiBaseUrl()}/api/cash-accounts`, {
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Erro ao carregar contas caixa.');
+    }
+
+    const items = ((result.data || []) as ApiCashAccount[]).filter((item) => isActiveStatus(item.status));
+    setCashAccounts(items);
   };
 
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        await Promise.all([fetchAccountTypes(), fetchPaymentTypes()]);
+        await Promise.all([fetchAccountTypes(), fetchPaymentTypes(), fetchCashAccounts()]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar módulo de contas a pagar.');
       }
@@ -632,13 +676,19 @@ export default function ContasPagar() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta conta a pagar?')) {
+  const handleDelete = (conta: ContaPagar) => {
+    setContaToDelete(conta);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteConta = async () => {
+    if (!contaToDelete) {
       return;
     }
 
+    setIsDeleting(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${contaToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -649,9 +699,13 @@ export default function ContasPagar() {
       }
 
       toast.success('Conta a pagar excluída com sucesso.');
+      setDeleteDialogOpen(false);
+      setContaToDelete(null);
       await fetchContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir conta a pagar.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -661,7 +715,11 @@ export default function ContasPagar() {
   };
 
   const handleViewOrigin = (conta: ContaPagar) => {
-    setSelectedOriginName(conta.origemConta || 'Origem não localizada.');
+    setSelectedOrigin(origins.find((origin) => origin.id === conta.originId) || {
+      id: conta.originId || 0,
+      description: conta.origemConta || 'Origem não localizada.',
+      person: null,
+    });
     setOriginDialogOpen(true);
   };
 
@@ -682,7 +740,26 @@ export default function ContasPagar() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingConta(null);
+    paidEditConfirmedRef.current = false;
     setFormData(DEFAULT_FORM);
+  };
+
+  const confirmSavePaidConta = () => {
+    paidEditConfirmedRef.current = true;
+    setPaidEditConfirmOpen(false);
+    window.setTimeout(() => {
+      saveConta();
+    }, 0);
+  };
+
+  const openPagarDecisionDialog = (conta: ContaPagar) => {
+    setContaToPagar(conta);
+    setPayCashAccountId(cashAccounts.length === 1 ? String(cashAccounts[0].id) : '');
+    setPagarDialogOpen(true);
+  };
+
+  const handleGerarDespesaPendente = (conta: ContaPagar) => {
+    openPagarDecisionDialog(conta);
   };
 
   const saveConta = async (event?: FormEvent<HTMLFormElement>) => {
@@ -708,9 +785,12 @@ export default function ContasPagar() {
       return;
     }
 
-    if (editingConta?.status === 'pago' && !confirm('Esta conta já está paga. Deseja salvar as alterações mesmo assim?')) {
+    if (editingConta?.status === 'pago' && !paidEditConfirmedRef.current) {
+      setPaidEditConfirmOpen(true);
       return;
     }
+
+    paidEditConfirmedRef.current = false;
 
     setIsSaving(true);
 
@@ -729,7 +809,7 @@ export default function ContasPagar() {
         nominalDate: formData.dataNominal,
         dueDate: formData.dataVencimento,
         value: valor,
-        paid: formData.status === 'pago',
+        paid: isEditing && editingConta!.status !== 'pago' && formData.status === 'pago' ? false : formData.status === 'pago',
       };
 
       if (formData.numeroDoc.trim()) {
@@ -766,7 +846,9 @@ export default function ContasPagar() {
         }
       }
 
-      if (!shouldSaveBaseData && formData.status === 'pago' && (!isEditing || editingConta!.status !== 'pago')) {
+      const shouldOpenPayDecision = Boolean(isEditing && editingConta!.status !== 'pago' && formData.status === 'pago');
+
+      if (!shouldOpenPayDecision && !shouldSaveBaseData && formData.status === 'pago' && (!isEditing || editingConta!.status !== 'pago')) {
         const payPayload = {
           ...(formData.paymentTypeId ? { paymentTypeId: Number(formData.paymentTypeId) } : {}),
           skipAudit: shouldSkipStatusAudit,
@@ -787,7 +869,22 @@ export default function ContasPagar() {
         showNewestRecordsFirst();
       }
 
-      toast.success(isEditing ? 'Conta a pagar atualizada com sucesso.' : 'Conta a pagar cadastrada com sucesso.');
+      if (shouldOpenPayDecision) {
+        openPagarDecisionDialog({
+          ...editingConta!,
+          descricao: formData.descricao.trim(),
+          accountTypeId: Number(formData.accountTypeId),
+          paymentTypeId: Number(formData.paymentTypeId),
+          dataNominal: formData.dataNominal,
+          dataVencimento: formData.dataVencimento,
+          numeroDoc: formData.numeroDoc.trim(),
+          valor,
+          status: editingConta!.status,
+        });
+        toast.success(hasOtherChanges ? 'Alterações salvas. Confirme o pagamento da conta.' : 'Confirme o pagamento da conta.');
+      } else {
+        toast.success(isEditing ? 'Conta a pagar atualizada com sucesso.' : 'Conta a pagar cadastrada com sucesso.');
+      }
       handleCloseDialog();
       await fetchContas();
     } catch (error) {
@@ -875,17 +972,80 @@ export default function ContasPagar() {
   };
 
   const handleMarcarPago = (conta: ContaPagar) => {
-    setContaToPagar(conta);
-    setPagarDialogOpen(true);
+    openPagarDecisionDialog(conta);
   };
 
-  const confirmMarcarPago = async () => {
+  const closePagarDialog = () => {
+    setPagarDialogOpen(false);
+    setContaToPagar(null);
+    setPayCashAccountId('');
+  };
+
+  const confirmGerarDespesaVinculada = async () => {
     if (!contaToPagar) {
       return;
     }
 
+    if (!payCashAccountId) {
+      toast.error('Selecione a conta caixa para gerar a despesa.');
+      return;
+    }
+
+    setIsPaying(true);
+
     try {
-      const payload = contaToPagar.paymentTypeId ? { paymentTypeId: contaToPagar.paymentTypeId } : {};
+      const response = await fetch(`${getApiBaseUrl()}/api/expenses`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          description: contaToPagar.descricao,
+          accountTypeId: contaToPagar.accountTypeId,
+          cashAccountId: Number(payCashAccountId),
+          value: contaToPagar.valor,
+          expenseDate: contaToPagar.dataPagamento || new Date().toISOString().slice(0, 10),
+          accountPayableId: contaToPagar.id,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Erro ao gerar despesa vinculada.');
+      }
+
+      toast.success('Despesa vinculada gerada com sucesso.');
+      closePagarDialog();
+      await fetchContas();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar despesa vinculada.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const confirmMarcarPago = async (generateExpense: boolean) => {
+    if (!contaToPagar) {
+      return;
+    }
+
+    if (contaToPagar.status === 'pago') {
+      if (generateExpense) {
+        await confirmGerarDespesaVinculada();
+      }
+      return;
+    }
+
+    if (generateExpense && !payCashAccountId) {
+      toast.error('Selecione a conta caixa para gerar a despesa.');
+      return;
+    }
+
+    setIsPaying(true);
+
+    try {
+      const payload = {
+        ...(contaToPagar.paymentTypeId ? { paymentTypeId: contaToPagar.paymentTypeId } : {}),
+        ...(generateExpense ? { generateExpense: true, cashAccountId: Number(payCashAccountId) } : {}),
+      };
       const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/${contaToPagar.id}/pay`, {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -897,12 +1057,13 @@ export default function ContasPagar() {
         throw new Error(result?.error || 'Erro ao marcar conta como paga.');
       }
 
-      toast.success('Conta marcada como paga.');
-      setPagarDialogOpen(false);
-      setContaToPagar(null);
+      toast.success(generateExpense ? 'Conta marcada como paga e despesa gerada com sucesso.' : 'Conta marcada como paga.');
+      closePagarDialog();
       await fetchContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao marcar conta como paga.');
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -930,6 +1091,22 @@ export default function ContasPagar() {
     Boolean(dataFimFiltro);
 
   const originsWithAccounts = origins;
+  const originFilterOptions = [
+    { value: 'todas', label: 'Todas' },
+    ...originsWithAccounts
+      .map((origin) => ({
+        value: String(origin.id),
+        label: origin.description || `Origem ${origin.id}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })),
+  ];
+  const accountTypeFilterOptions = [
+    { value: 'todos', label: 'Todos' },
+    ...accountTypes.map((item) => ({
+      value: String(item.id),
+      label: item.description,
+    })),
+  ];
   const sortedContas = contas;
   const totalPendente = summary.pendente.valor;
   const totalPago = summary.pago.valor;
@@ -1430,36 +1607,28 @@ export default function ContasPagar() {
 
               <div className="space-y-2">
                 <Label htmlFor="accountTypeFiltro" className="dark:text-slate-300">Tipo de Conta</Label>
-                <Select value={accountTypeFiltro} onValueChange={setAccountTypeFiltro}>
-                  <SelectTrigger id="accountTypeFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos" className="cursor-pointer">Todos</SelectItem>
-                    {accountTypes.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
-                        {item.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="accountTypeFiltro"
+                  value={accountTypeFiltro}
+                  options={accountTypeFilterOptions}
+                  onValueChange={setAccountTypeFiltro}
+                  placeholder="Todos"
+                  searchPlaceholder="Buscar tipo de conta..."
+                  emptyMessage="Nenhum tipo de conta encontrado."
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="originFiltro" className="dark:text-slate-300">Origem</Label>
-                <Select value={originFiltro} onValueChange={setOriginFiltro}>
-                  <SelectTrigger id="originFiltro" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas" className="cursor-pointer">Todas</SelectItem>
-                    {originsWithAccounts.map((origin) => (
-                      <SelectItem key={origin.id} value={String(origin.id)} className="cursor-pointer">
-                        {origin.description || `Origem ${origin.id}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="originFiltro"
+                  value={originFiltro}
+                  options={originFilterOptions}
+                  onValueChange={setOriginFiltro}
+                  placeholder="Todas"
+                  searchPlaceholder="Buscar origem..."
+                  emptyMessage="Nenhuma origem encontrada."
+                />
               </div>
 
               <div className="space-y-2">
@@ -1557,7 +1726,23 @@ export default function ContasPagar() {
                       <TableCell>{conta.dataVencimento ? formatDateBR(conta.dataVencimento) : '-'}</TableCell>
                       <TableCell>{conta.formaPgto}</TableCell>
                       <TableCell>{conta.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
-                      <TableCell>{getStatusBadge(conta.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {getStatusBadge(conta.status)}
+                          {conta.status === 'pago' && !conta.linkedExpenseId && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 cursor-pointer p-0 text-slate-500 hover:bg-gray-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+                              title="Conta paga sem despesa vinculada"
+                              onClick={() => handleGerarDespesaPendente(conta)}
+                            >
+                              <CircleAlert className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         {conta.status === 'pendente' || conta.status === 'vencido' ? (
                           <Button
@@ -1581,7 +1766,7 @@ export default function ContasPagar() {
                           <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(conta)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(conta)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1762,15 +1947,28 @@ export default function ContasPagar() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={originDialogOpen} onOpenChange={setOriginDialogOpen}>
+      <Dialog open={originDialogOpen} onOpenChange={(open) => {
+        setOriginDialogOpen(open);
+        if (!open) setSelectedOrigin(null);
+      }}>
         <DialogContent className="max-w-md dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Origem da Conta</DialogTitle>
             <DialogDescription>Conta gerada a partir da origem abaixo.</DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-blue-100 bg-blue-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
-            <Label className="dark:text-slate-300">Origem</Label>
-            <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOriginName}</p>
+          <div className="grid grid-cols-1 gap-4 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Código</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.id || '-'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Nome</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.description || '-'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-500 dark:text-slate-300">Tipo</Label>
+              <p className="mt-1 text-gray-900 dark:text-slate-100">{selectedOrigin?.person === true || selectedOrigin?.person === 1 || selectedOrigin?.person === '1' || selectedOrigin?.person === 'true' ? 'Fornecedor' : 'Operação'}</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={() => setOriginDialogOpen(false)}>
@@ -1780,19 +1978,92 @@ export default function ContasPagar() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={pagarDialogOpen} onOpenChange={setPagarDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir esta conta a pagar?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setContaToDelete(null);
+        }}
+        onConfirm={confirmDeleteConta}
+      />
+
+      <ConfirmActionDialog
+        open={paidEditConfirmOpen}
+        title="Confirmar Alteração"
+        description="Esta conta já está paga. Deseja salvar as alterações mesmo assim?"
+        confirmLabel="Salvar Alterações"
+        isLoading={isSaving}
+        onOpenChange={(open) => {
+          setPaidEditConfirmOpen(open);
+          if (!open) paidEditConfirmedRef.current = false;
+        }}
+        onConfirm={confirmSavePaidConta}
+      />
+
+      <AlertDialog open={pagarDialogOpen} onOpenChange={(open) => (open ? setPagarDialogOpen(true) : closePagarDialog())}>
+        <AlertDialogContent className="dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle>{contaToPagar?.status === 'pago' ? 'Gerar Despesa Vinculada' : 'Marcar Conta como Paga'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja marcar esta conta como paga? Esta ação irá atualizar o status e registrar a data de pagamento.
+              {contaToPagar?.status === 'pago'
+                ? 'Esta conta já está paga, mas ainda não possui despesa vinculada. Deseja gerar a despesa agora?'
+                : 'Deseja marcar esta conta como paga e gerar uma despesa vinculada?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMarcarPago} className="cursor-pointer bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155]">
-              Confirmar
-            </AlertDialogAction>
+          <div className="mt-2 space-y-4">
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#2f394a] dark:bg-[#273447]">
+              <p className="text-sm leading-relaxed text-gray-600 dark:text-slate-300">
+                <span className="font-medium text-gray-700 dark:text-slate-200">Observação:</span>{' '}
+                A despesa será criada automaticamente com os dados desta conta a pagar e ficará vinculada a ela.
+              </p>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#2f394a] dark:bg-[#273447]">
+              <div className="space-y-2">
+                <Label htmlFor="contaCaixaDespesa" className="dark:text-slate-300">Conta Caixa para Despesa</Label>
+                <Select value={payCashAccountId} onValueChange={setPayCashAccountId}>
+                  <SelectTrigger id="contaCaixaDespesa" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
+                    <SelectValue placeholder="Selecione a conta caixa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cashAccounts.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)} className="cursor-pointer">
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  A conta caixa é usada somente se escolher gerar a despesa vinculada.
+                </p>
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter className="mt-4 gap-2 sm:justify-end">
+            <AlertDialogCancel disabled={isPaying} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">Cancelar</AlertDialogCancel>
+            {contaToPagar?.status !== 'pago' && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPaying}
+                onClick={() => confirmMarcarPago(false)}
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              >
+                Pagar sem Gerar
+              </Button>
+            )}
+            <Button
+              type="button"
+              disabled={isPaying}
+              onClick={() => confirmMarcarPago(true)}
+              className="cursor-pointer disabled:cursor-not-allowed bg-green-600 hover:bg-green-700 dark:bg-[#273447] dark:text-[#8bd8b1] dark:hover:bg-[#314155]"
+            >
+              {contaToPagar?.status === 'pago' ? 'Gerar Despesa' : 'Pagar e Gerar Despesa'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, AlertCircle, DollarSign, FileText, Trendi
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { getAuthToken } from '../lib/auth';
 
 type HomeTarget = 'pagar' | 'receber' | 'receitas' | 'despesas' | 'relatorios';
@@ -50,6 +51,8 @@ type MonthData = {
   receitas: number;
   despesas: number;
 };
+
+type PiePeriod = 'mes-atual' | 'mes-anterior' | '30' | '3-meses' | '6-meses' | '12-meses' | 'ano-atual';
 
 type HomeDashboardResponse = {
   monthlyData: MonthData[];
@@ -108,6 +111,17 @@ const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style:
 const normalizeDateInput = (value?: string | null) => (value ? value.slice(0, 10) : '');
 const toMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const getMonthKeyFromInput = (value: string) => value.slice(0, 7);
+const getDateFromInput = (value: string) => (value ? new Date(`${value}T00:00:00`) : null);
+const getMonthKeysUntilCurrent = (quantity: number) => {
+  const today = new Date();
+
+  return new Set(
+    Array.from({ length: quantity }, (_, index) => {
+      const date = new Date(today.getFullYear(), today.getMonth() - index, 1);
+      return toMonthKey(date);
+    }),
+  );
+};
 const sortByDateWithEmptyLast = (a: HomeItem, b: HomeItem) => {
   if (!a.data && !b.data) return 0;
   if (!a.data) return 1;
@@ -168,6 +182,8 @@ export default function Home({ onNavigate }: HomeProps) {
   const [payables, setPayables] = useState<HomeItem[]>([]);
   const [incomes, setIncomes] = useState<HomeItem[]>([]);
   const [expenses, setExpenses] = useState<HomeItem[]>([]);
+  const [apiMonthlyData, setApiMonthlyData] = useState<MonthData[]>([]);
+  const [piePeriod, setPiePeriod] = useState<PiePeriod>('mes-atual');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchJson = async <T,>(path: string): Promise<T> => {
@@ -192,6 +208,7 @@ export default function Home({ onNavigate }: HomeProps) {
       setReceivables((dashboardData.receivables || []).map(mapAccount));
       setIncomes((dashboardData.incomes || []).map((entry) => mapCashEntry(entry, 'Receita')));
       setExpenses((dashboardData.expenses || []).map((entry) => mapCashEntry(entry, 'Despesa')));
+      setApiMonthlyData(dashboardData.monthlyData || []);
     } catch {
       try {
         const [payablesData, receivablesData, incomesData, expensesData] = await Promise.all([
@@ -205,6 +222,7 @@ export default function Home({ onNavigate }: HomeProps) {
         setReceivables((receivablesData || []).map(mapAccount));
         setIncomes((incomesData || []).map((entry) => mapCashEntry(entry, 'Receita')));
         setExpenses((expensesData || []).map((entry) => mapCashEntry(entry, 'Despesa')));
+        setApiMonthlyData([]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar home.');
       }
@@ -218,6 +236,14 @@ export default function Home({ onNavigate }: HomeProps) {
   }, []);
 
   const monthlyData = useMemo(() => {
+    if (apiMonthlyData.length > 0) {
+      return apiMonthlyData.map((month) => ({
+        ...month,
+        receitas: Number(month.receitas || 0),
+        despesas: Number(month.despesas || 0),
+      }));
+    }
+
     const today = new Date();
     const months: MonthData[] = Array.from({ length: 6 }, (_, index) => {
       const date = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
@@ -242,14 +268,51 @@ export default function Home({ onNavigate }: HomeProps) {
     });
 
     return months;
-  }, [expenses, incomes]);
+  }, [apiMonthlyData, expenses, incomes]);
 
   const categoryData = useMemo(() => {
     const currentMonth = toMonthKey(new Date());
+    const previousMonthDate = new Date();
+    previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
+    const previousMonth = toMonthKey(previousMonthDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = piePeriod === '30' ? Number(piePeriod) : 0;
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - (days - 1));
+    const yearStart = new Date(today.getFullYear(), 0, 1);
+    const monthQuantities: Partial<Record<PiePeriod, number>> = {
+      '3-meses': 3,
+      '6-meses': 6,
+      '12-meses': 12,
+    };
+    const selectedMonthKeys = monthQuantities[piePeriod]
+      ? getMonthKeysUntilCurrent(monthQuantities[piePeriod])
+      : null;
     const totals = new Map<string, number>();
 
     expenses
-      .filter((item) => getMonthKeyFromInput(item.data) === currentMonth)
+      .filter((item) => {
+        if (piePeriod === 'mes-atual') {
+          return getMonthKeyFromInput(item.data) === currentMonth;
+        }
+
+        if (piePeriod === 'mes-anterior') {
+          return getMonthKeyFromInput(item.data) === previousMonth;
+        }
+
+        if (selectedMonthKeys) {
+          return selectedMonthKeys.has(getMonthKeyFromInput(item.data));
+        }
+
+        const itemDate = getDateFromInput(item.data);
+
+        if (piePeriod === 'ano-atual') {
+          return itemDate ? itemDate >= yearStart && itemDate <= today : false;
+        }
+
+        return itemDate ? itemDate >= startDate && itemDate <= today : false;
+      })
       .forEach((item) => {
         totals.set(item.tipoConta, (totals.get(item.tipoConta) || 0) + item.valor);
       });
@@ -271,7 +334,37 @@ export default function Home({ onNavigate }: HomeProps) {
 
         return acc;
       }, []);
-  }, [expenses]);
+  }, [expenses, piePeriod]);
+
+  const piePeriodDescription = {
+    'mes-atual': 'Distribuição no mês atual',
+    'mes-anterior': 'Distribuição no mês anterior',
+    '30': 'Distribuição nos últimos 30 dias',
+    '3-meses': 'Distribuição nos últimos 3 meses',
+    '6-meses': 'Distribuição nos últimos 6 meses',
+    '12-meses': 'Distribuição nos últimos 12 meses',
+    'ano-atual': 'Distribuição no ano atual',
+  }[piePeriod];
+
+  const emptyPieMessage = {
+    'mes-atual': 'Nenhuma despesa no mês atual.',
+    'mes-anterior': 'Nenhuma despesa no mês anterior.',
+    '30': 'Nenhuma despesa nos últimos 30 dias.',
+    '3-meses': 'Nenhuma despesa nos últimos 3 meses.',
+    '6-meses': 'Nenhuma despesa nos últimos 6 meses.',
+    '12-meses': 'Nenhuma despesa nos últimos 12 meses.',
+    'ano-atual': 'Nenhuma despesa no ano atual.',
+  }[piePeriod];
+
+  const piePeriodShortLabel = {
+    'mes-atual': 'Mês atual',
+    'mes-anterior': 'Mês anterior',
+    '30': '30 dias',
+    '3-meses': '3 meses',
+    '6-meses': '6 meses',
+    '12-meses': '12 meses',
+    'ano-atual': 'Ano atual',
+  }[piePeriod];
 
   const pendingReceivables = useMemo(
     () => receivables.filter((item) => !item.pago).sort(sortByDateWithEmptyLast).slice(0, 2),
@@ -433,14 +526,32 @@ export default function Home({ onNavigate }: HomeProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Despesas por Tipo de Conta</CardTitle>
-            <CardDescription>Distribuição no mês atual</CardDescription>
+          <CardHeader className="gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Despesas por Tipo de Conta</CardTitle>
+                <CardDescription>{piePeriodDescription}</CardDescription>
+              </div>
+              <Select value={piePeriod} onValueChange={(value) => setPiePeriod(value as PiePeriod)}>
+                <SelectTrigger className="h-9 w-full cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 sm:w-[150px]">
+                  <SelectValue>{piePeriodShortLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mes-atual" className="cursor-pointer">Mês atual</SelectItem>
+                  <SelectItem value="mes-anterior" className="cursor-pointer">Mês anterior</SelectItem>
+                  <SelectItem value="30" className="cursor-pointer">Últimos 30 dias</SelectItem>
+                  <SelectItem value="3-meses" className="cursor-pointer">Últimos 3 meses</SelectItem>
+                  <SelectItem value="6-meses" className="cursor-pointer">Últimos 6 meses</SelectItem>
+                  <SelectItem value="12-meses" className="cursor-pointer">Últimos 12 meses</SelectItem>
+                  <SelectItem value="ano-atual" className="cursor-pointer">Ano atual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {categoryData.length === 0 ? (
               <div className="h-[250px] flex items-center justify-center text-gray-500">
-                Nenhuma despesa no mês atual.
+                {emptyPieMessage}
               </div>
             ) : (
               <div className="[--home-pie-stroke:#ffffff] dark:[--home-pie-stroke:var(--card)]">

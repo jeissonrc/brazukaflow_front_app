@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Switch } from './ui/switch';
 import { toast } from 'sonner@2.0.3';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type ApiCategoria = {
   id: number;
@@ -154,11 +155,14 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingTipo, setEditingTipo] = useState<TipoConta | null>(null);
   const [viewingTipo, setViewingTipo] = useState<TipoConta | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tipoToDelete, setTipoToDelete] = useState<TipoConta | null>(null);
   
   const [sortColumn, setSortColumn] = useState<keyof TipoConta | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
   const [pagination, setPagination] = useState<TiposContasPagination>(DEFAULT_PAGINATION);
@@ -434,13 +438,20 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
     setViewDialogOpen(true);
   };
 
-  const handleDelete = async (tipo: TipoConta) => {
-    if (!confirm('Deseja realmente excluir este tipo de conta?')) {
+  const handleDelete = (tipo: TipoConta) => {
+    setTipoToDelete(tipo);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTipo = async () => {
+    if (!tipoToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/account-types/${tipo.id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/account-types/${tipoToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -451,9 +462,13 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
       }
 
       toast.success('Tipo de conta excluído com sucesso!');
+      setDeleteDialogOpen(false);
+      setTipoToDelete(null);
       await fetchTiposContas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de conta.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1135,6 +1150,22 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={`Deseja realmente excluir este tipo de conta?\nEsta ação não poderá ser desfeita após sua confirmação.`}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setTipoToDelete(null);
+          }
+        }}
+        onConfirm={confirmDeleteTipo}
+      />
     </div>
   );
 }

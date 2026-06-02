@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Switch } from './ui/switch';
 import { toast } from 'sonner@2.0.3';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type ApiCategoria = {
   id: number;
@@ -125,6 +126,8 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null);
   const [viewingCategoria, setViewingCategoria] = useState<Categoria | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [categoriaToDelete, setCategoriaToDelete] = useState<Categoria | null>(null);
   
   const [sortColumn, setSortColumn] = useState<keyof Categoria | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -138,6 +141,7 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
   const tipoRequiredRef = useRef<HTMLSelectElement>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [formData, setFormData] = useState({
     idCategoria: '',
@@ -374,13 +378,20 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
     setViewDialogOpen(true);
   };
 
-  const handleDelete = async (categoria: Categoria) => {
-    if (!confirm('Deseja realmente excluir esta categoria?')) {
+  const handleDelete = (categoria: Categoria) => {
+    setCategoriaToDelete(categoria);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteCategoria = async () => {
+    if (!categoriaToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/category-types/${categoria.id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/category-types/${categoriaToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -391,9 +402,13 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
       }
 
       toast.success('Categoria excluída com sucesso!');
+      setDeleteDialogOpen(false);
+      setCategoriaToDelete(null);
       await fetchCategorias();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir categoria.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1011,6 +1026,22 @@ export default function Categorias({ onBack }: { onBack: () => void }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={`Deseja realmente excluir esta categoria?\nEsta ação não poderá ser desfeita após sua confirmação.`}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setCategoriaToDelete(null);
+          }
+        }}
+        onConfirm={confirmDeleteCategoria}
+      />
     </div>
   );
 }

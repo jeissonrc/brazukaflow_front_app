@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type ApiTipoPagamento = {
   id: number;
@@ -106,6 +107,9 @@ export default function TiposPagamento() {
   const [formData, setFormData] = useState<TipoPagamentoForm>(DEFAULT_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tipoToDelete, setTipoToDelete] = useState<TipoPagamento | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof TipoPagamento | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -287,13 +291,20 @@ const setRequiredMessage = (event: FormEvent<HTMLInputElement>, message: string)
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este tipo de pagamento?')) {
+  const handleDelete = (tipo: TipoPagamento) => {
+    setTipoToDelete(tipo);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTipoPagamento = async () => {
+    if (!tipoToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/payment-types/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/payment-types/${tipoToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -304,9 +315,13 @@ const setRequiredMessage = (event: FormEvent<HTMLInputElement>, message: string)
       }
 
       toast.success('Tipo de pagamento excluído com sucesso.');
+      setDeleteDialogOpen(false);
+      setTipoToDelete(null);
       await fetchTiposPagamento();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir tipo de pagamento.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -648,7 +663,7 @@ const setRequiredMessage = (event: FormEvent<HTMLInputElement>, message: string)
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(tipo.id)}
+                          onClick={() => handleDelete(tipo)}
                           className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]"
                           title="Excluir"
                         >
@@ -806,6 +821,20 @@ const setRequiredMessage = (event: FormEvent<HTMLInputElement>, message: string)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir este tipo de pagamento?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setTipoToDelete(null);
+        }}
+        onConfirm={confirmDeleteTipoPagamento}
+      />
     </div>
   );
 }

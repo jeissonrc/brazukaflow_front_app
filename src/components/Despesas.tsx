@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, X, Loader2, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { toast } from 'sonner@2.0.3';
 import { getAuthToken } from '../lib/auth';
+import ConfirmActionDialog from './ConfirmActionDialog';
 
 type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
 
@@ -39,8 +40,13 @@ type ApiExpense = {
   expenseDate?: string | null;
   accountTypeId?: number | null;
   cashAccountId?: number | null;
+  accountPayableId?: number | null;
   accountType?: ApiAccountType;
   cashAccount?: ApiCashAccount;
+  accountPayable?: {
+    id: number;
+    description?: string | null;
+  } | null;
 };
 
 type Despesa = {
@@ -51,6 +57,8 @@ type Despesa = {
   contaCaixa: string;
   accountTypeId: number | null;
   cashAccountId: number | null;
+  accountPayableId: number | null;
+  accountPayableDescription: string;
   valor: number;
   dataDespesa: string;
 };
@@ -179,6 +187,9 @@ const getAuthHeaders = () => {
   };
 };
 
+const readonlyDisplayFieldClassName =
+  'flex h-9 w-full min-w-0 items-center rounded-md border border-input bg-input-background px-3 py-1 text-base text-gray-400 transition-[color,box-shadow] md:text-sm dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-300';
+
 const clearFieldValidity = (event: FormEvent<HTMLInputElement | HTMLSelectElement>) => {
   event.currentTarget.setCustomValidity('');
 };
@@ -195,6 +206,8 @@ const mapApiExpenseToDespesa = (expense: ApiExpense): Despesa => ({
   contaCaixa: expense.cashAccount?.name || '-',
   accountTypeId: expense.accountTypeId ?? null,
   cashAccountId: expense.cashAccountId ?? null,
+  accountPayableId: expense.accountPayableId ?? null,
+  accountPayableDescription: expense.accountPayable?.description || '',
   valor: Number(expense.value || 0),
   dataDespesa: normalizeDateInput(expense.expenseDate),
 });
@@ -213,12 +226,15 @@ export default function Despesas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedDespesa, setSelectedDespesa] = useState<Despesa | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [despesaToDelete, setDespesaToDelete] = useState<Despesa | null>(null);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [accountTypes, setAccountTypes] = useState<ApiAccountType[]>([]);
   const [cashAccounts, setCashAccounts] = useState<ApiCashAccount[]>([]);
   const [formData, setFormData] = useState<DespesaForm>(DEFAULT_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof Despesa | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -492,13 +508,20 @@ export default function Despesas() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta despesa?')) {
+  const handleDelete = (despesa: Despesa) => {
+    setDespesaToDelete(despesa);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteDespesa = async () => {
+    if (!despesaToDelete) {
       return;
     }
 
+    setIsDeleting(true);
+
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/expenses/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/expenses/${despesaToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -507,9 +530,13 @@ export default function Despesas() {
         throw new Error(result?.error || 'Erro ao excluir despesa.');
       }
       toast.success('Despesa excluída com sucesso.');
+      setDeleteDialogOpen(false);
+      setDespesaToDelete(null);
       await fetchDespesas();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao excluir despesa.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -807,6 +834,18 @@ export default function Despesas() {
                         className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100"
                       />
                     </div>
+                    {editingDespesa?.accountPayableId && (
+                      <div className="col-span-full space-y-2">
+                        <Label className="dark:text-slate-300">
+                          Origem da Despesa{' '}
+                          <span className="text-[11px] font-normal italic text-gray-400 dark:text-slate-500">(Campo não Editável)</span>
+                        </Label>
+                        <div className={readonlyDisplayFieldClassName}>
+                          Conta a Pagar Código: {editingDespesa.accountPayableId}
+                          {editingDespesa.accountPayableDescription ? ` - ${editingDespesa.accountPayableDescription}` : ''}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button type="button" variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleCloseDialog}>
@@ -932,9 +971,26 @@ export default function Despesas() {
                   sortedDespesas.map((despesa) => (
                     <TableRow key={despesa.id} className="dark:hover:bg-[#273447]">
                       <TableCell>{despesa.id}</TableCell>
-                      <TableCell>{despesa.descricao || '-'}</TableCell>
                       <TableCell>
-                        <Badge className="bg-red-100 text-red-700 dark:bg-[#273447] dark:text-[#a1a1aa]">{despesa.tipoConta}</Badge>
+                        <div className="flex items-center gap-2">
+                          <span>{despesa.descricao || '-'}</span>
+                          {despesa.accountPayableId && (
+                            <button
+                              type="button"
+                              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-[#8ab4f8] dark:hover:bg-[#314155] dark:hover:text-[#a7c5fb]"
+                              title={`Gerada a partir da Conta a Pagar #${despesa.accountPayableId}`}
+                              onClick={() => {
+                                const originText = `Gerada a partir da Conta a Pagar #${despesa.accountPayableId}${despesa.accountPayableDescription ? ` (${despesa.accountPayableDescription})` : ''}`;
+                                toast.info(originText);
+                              }}
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="!bg-gray-100 !text-slate-500 dark:!bg-[#273447] dark:!text-zinc-400">{despesa.tipoConta}</Badge>
                       </TableCell>
                       <TableCell>{despesa.contaCaixa}</TableCell>
                       <TableCell className="text-red-600 dark:text-[#e7a0a9]">{despesa.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
@@ -947,7 +1003,7 @@ export default function Despesas() {
                           <Button size="sm" variant="ghost" className="cursor-pointer disabled:cursor-not-allowed text-gray-600 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200" onClick={() => handleEdit(despesa)} title="Editar">
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa.id)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(despesa)} className="cursor-pointer disabled:cursor-not-allowed text-red-600 hover:text-red-700 dark:text-[#e7a0a9] dark:hover:bg-[#314155] dark:hover:text-[#ffb3be]" title="Excluir">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -1098,6 +1154,15 @@ export default function Despesas() {
                   <p className="text-gray-900 dark:text-slate-100">{selectedDespesa.dataDespesa ? formatDateBR(selectedDespesa.dataDespesa) : '-'}</p>
                 </div>
               </div>
+              {selectedDespesa.accountPayableId && (
+                <div>
+                  <Label className="text-gray-500 dark:text-slate-300">Origem da Despesa</Label>
+                  <p className="text-gray-900 dark:text-slate-100">
+                    Conta a Pagar Código: {selectedDespesa.accountPayableId}
+                    {selectedDespesa.accountPayableDescription ? ` - ${selectedDespesa.accountPayableDescription}` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -1107,6 +1172,20 @@ export default function Despesas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={deleteDialogOpen}
+        title="Confirmar Exclusão"
+        description={'Deseja realmente excluir esta despesa?\nEsta ação não poderá ser desfeita após sua confirmação.'}
+        confirmLabel="Excluir"
+        variant="danger"
+        isLoading={isDeleting}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDespesaToDelete(null);
+        }}
+        onConfirm={confirmDeleteDespesa}
+      />
     </div>
   );
 }
