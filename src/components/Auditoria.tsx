@@ -104,7 +104,7 @@ const FINANCIAL_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_FINANCEIRO
 const PAYABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_PAGAMENTO', label: 'Status Pago/Não Pago' };
 const RECEIVABLE_STATUS_ACTION_OPTION: FilterOption = { value: 'STATUS_RECEBIMENTO', label: 'Status Recebido/Não Recebido' };
 const BACKUP_ACTION_OPTION: FilterOption = { value: 'BACKUP', label: 'Backup' };
-const ACTIVATION_MODULES = new Set(['USUARIOS', 'TIPOS_PAGAMENTO', 'PLANO_CONTAS']);
+const ACTIVATION_MODULES = new Set(['USUARIOS', 'ORIGENS', 'TIPOS_PAGAMENTO', 'PLANO_CONTAS']);
 const INFO_STATUS_MODULES = new Set(['MANUTENCAO']);
 
 const getStatusOptionsForModule = (module: string): FilterOption[] => {
@@ -206,6 +206,7 @@ const formatModuleLabel = (value: string) => {
     AUTENTICACAO: 'Login',
     LOGIN: 'Login',
     USUARIOS: 'Usuários',
+    ORIGENS: 'Origens de Contas',
     PLANO_CONTAS: 'Plano de Contas',
     PLANO_CONTAS_TIPOS: 'Plano Contas > Tipos',
     PLANO_CONTAS_CATEGORIAS: 'Plano Contas > Categorias',

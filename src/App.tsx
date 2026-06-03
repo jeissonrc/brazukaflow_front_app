@@ -1,7 +1,7 @@
 import { toast } from 'sonner@2.0.3';
 import { Toaster } from './components/ui/sonner';
 import { useEffect, useState } from 'react';
-import { Home as HomeIcon, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut, Wrench } from 'lucide-react';
+import { Home as HomeIcon, TrendingUp, TrendingDown, Wallet, DollarSign, FolderTree, Users, Menu, CreditCard, FileText, LogOut, Wrench, GitBranch } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Switch } from './components/ui/switch';
 import Home from './components/Home';
@@ -13,6 +13,7 @@ import Receitas from './components/Receitas';
 import Despesas from './components/Despesas';
 import PlanoContas from './components/PlanoContas';
 import TiposPagamento from './components/TiposPagamento';
+import OrigensContas from './components/OrigensContas';
 import Usuarios from './components/Usuarios';
 import Relatorios from './components/Relatorios';
 import Auditoria from './components/Auditoria';
@@ -25,7 +26,7 @@ import Categorias from './components/Categorias';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './lib/auth';
 import { canManageSystem, getRoleByProfileId } from './lib/profileRoles';
 
-type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'relatorios' | 'manutencao' | 'auditoria' | 'backup' | 'configuracoes-logs' | 'usuarios' | 'tipos-contas' | 'categorias';
+type MenuOption = 'home' | 'dashboard' | 'dashboard-simples' | 'receber' | 'pagar' | 'receitas' | 'despesas' | 'plano-contas' | 'tipos-pagamento' | 'origens' | 'relatorios' | 'manutencao' | 'auditoria' | 'backup' | 'configuracoes-logs' | 'usuarios' | 'tipos-contas' | 'categorias';
 
 const THEME_STORAGE_KEY = 'brazukaflow.theme';
 
@@ -111,6 +112,7 @@ export default function App() {
       ? [
           { id: 'plano-contas' as MenuOption, label: 'Plano de Contas', icon: FolderTree },
           { id: 'tipos-pagamento' as MenuOption, label: 'Tipos de Pagamento', icon: CreditCard },
+          { id: 'origens' as MenuOption, label: 'Origens de Contas', icon: GitBranch },
         ]
       : []),
     { id: 'relatorios' as MenuOption, label: 'Relatórios', icon: FileText },
@@ -149,6 +151,8 @@ export default function App() {
         return <PlanoContas onNavigateToTipos={() => setActiveMenu('tipos-contas')} />;
       case 'tipos-pagamento':
         return <TiposPagamento />;
+      case 'origens':
+        return <OrigensContas />;
       case 'relatorios':
         return <Relatorios />;
       case 'manutencao':

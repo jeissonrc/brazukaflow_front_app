@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Search, Filter, Check, Copy, Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Info, X, Loader2, CircleAlert } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Button } from './ui/button';
@@ -43,6 +43,7 @@ type ApiOriginAccount = {
   description?: string | null;
   category?: number | string | null;
   person?: boolean | number | string | null;
+  status?: boolean | number | string | null;
 };
 
 type ApiCashAccount = {
@@ -115,6 +116,15 @@ type MassForm = {
   dataInicio: string;
   observacoes: string;
 };
+
+type MassGenerationPayload = {
+  originDescription: string;
+  obs: string | null;
+  valorTotal: number;
+  parcelas: number;
+};
+
+type OriginMatchKind = 'exact' | 'similar' | 'different-type' | 'different-type-similar';
 
 type AccountsPayablePagination = {
   page: number;
@@ -191,6 +201,29 @@ const calculateAccountsSummary = (items: ContaPagar[]): AccountsPayableSummary =
 
 const getApiBaseUrl = () => import.meta.env.VITE_API_URL || '';
 const isActiveStatus = (status: boolean | number | string | null | undefined) => status !== false && status !== 0 && status !== '0' && status !== 'false';
+const isOriginActive = (origin: ApiOriginAccount) => isActiveStatus(origin.status);
+const isTrue = (value: boolean | number | string | null | undefined) => value === true || value === 1 || value === '1' || value === 'true';
+
+const normalizeOriginName = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+const isOriginNameSimilar = (typedName: string, existingName: string) => {
+  const typed = normalizeOriginName(typedName);
+  const existing = normalizeOriginName(existingName);
+
+  if (!typed || !existing || typed === existing) return false;
+  if (typed.length >= 4 && existing.length >= 4 && (typed.includes(existing) || existing.includes(typed))) return true;
+
+  const typedTokens = typed.split(' ').filter((token) => token.length >= 3);
+  if (typedTokens.length < 2) return false;
+
+  return typedTokens.every((token) => existing.includes(token));
+};
 
 const normalizeDateInput = (value?: string | null) => {
   if (!value) {
@@ -333,6 +366,13 @@ export default function ContasPagar() {
   const [cashAccounts, setCashAccounts] = useState<ApiCashAccount[]>([]);
   const [isPaying, setIsPaying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [massOriginMatchOpen, setMassOriginMatchOpen] = useState(false);
+  const [massOriginMatchKind, setMassOriginMatchKind] = useState<OriginMatchKind | null>(null);
+  const [matchedMassOrigin, setMatchedMassOrigin] = useState<ApiOriginAccount | null>(null);
+  const [pendingMassPayload, setPendingMassPayload] = useState<MassGenerationPayload | null>(null);
+  const [massSelectedOrigin, setMassSelectedOrigin] = useState<ApiOriginAccount | null>(null);
+  const [massOriginSelectorOpen, setMassOriginSelectorOpen] = useState(false);
+  const [massOriginSearchTerm, setMassOriginSearchTerm] = useState('');
   const [sortColumn, setSortColumn] = useState<keyof ContaPagar | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -346,6 +386,7 @@ export default function ContasPagar() {
   const paidEditConfirmedRef = useRef(false);
   const scrollToPaginationBottomRef = useRef(false);
   const paginationRef = useRef<HTMLDivElement>(null);
+  const massOriginSelectorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     accountTypeRequiredRef.current?.setCustomValidity('');
@@ -362,6 +403,20 @@ export default function ContasPagar() {
   useEffect(() => {
     massPaymentTypeRequiredRef.current?.setCustomValidity('');
   }, [massForm.paymentTypeId]);
+
+  useEffect(() => {
+    if (!massOriginSelectorOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!massOriginSelectorRef.current?.contains(event.target as Node)) {
+        setMassOriginSelectorOpen(false);
+        setMassOriginSearchTerm('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [massOriginSelectorOpen]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -897,11 +952,26 @@ export default function ContasPagar() {
   const handleCloseMassDialog = () => {
     setMassDialogOpen(false);
     setMassForm(DEFAULT_MASS_FORM);
+    setMassOriginMatchOpen(false);
+    setMassOriginMatchKind(null);
+    setMatchedMassOrigin(null);
+    setPendingMassPayload(null);
+    setMassSelectedOrigin(null);
+    setMassOriginSelectorOpen(false);
+    setMassOriginSearchTerm('');
   };
 
-  const saveMassContas = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleMassOriginTextChange = (value: string) => {
+    setMassSelectedOrigin(null);
+    setMassForm((prev) => ({ ...prev, origemConta: value }));
+  };
 
+  const handleMassOriginTypeChange = (value: string) => {
+    setMassSelectedOrigin(null);
+    setMassForm((prev) => ({ ...prev, origemFornecedor: value === 'fornecedor' }));
+  };
+
+  const validateMassForm = (): MassGenerationPayload | null => {
     const valorTotal = parseCurrencyInput(massForm.valorTotal);
     const parcelas = Number(massForm.parcelas);
 
@@ -917,41 +987,90 @@ export default function ContasPagar() {
       !massForm.dataInicio
     ) {
       toast.error('Preencha todos os campos obrigatórios para gerar as contas.');
-      return;
+      return null;
     }
 
+    return {
+      originDescription: massForm.origemConta.trim(),
+      obs: massForm.observacoes.trim() || null,
+      valorTotal,
+      parcelas,
+    };
+  };
+
+  const findMassOriginMatch = (originDescription: string) => {
+    const sameContextOrigins = origins.filter((origin) => Number(origin.category) === 1 && isTrue(origin.person) === massForm.origemFornecedor);
+    const exact = sameContextOrigins.find((origin) => normalizeOriginName(origin.description || '') === normalizeOriginName(originDescription));
+
+    if (exact) {
+      return { kind: 'exact' as const, origin: exact };
+    }
+
+    const similar = sameContextOrigins.find((origin) => isOriginNameSimilar(originDescription, origin.description || ''));
+    if (similar) {
+      return { kind: 'similar' as const, origin: similar };
+    }
+
+    const differentTypeExact = origins.find(
+      (origin) =>
+        Number(origin.category) === 1 &&
+        isTrue(origin.person) !== massForm.origemFornecedor &&
+        normalizeOriginName(origin.description || '') === normalizeOriginName(originDescription),
+    );
+
+    if (differentTypeExact) {
+      return { kind: 'different-type' as const, origin: differentTypeExact };
+    }
+
+    const differentTypeSimilar = origins.find(
+      (origin) =>
+        Number(origin.category) === 1 &&
+        isTrue(origin.person) !== massForm.origemFornecedor &&
+        isOriginNameSimilar(originDescription, origin.description || ''),
+    );
+
+    return differentTypeSimilar ? { kind: 'different-type-similar' as const, origin: differentTypeSimilar } : null;
+  };
+
+  const generateMassContas = async (payload: MassGenerationPayload, originId?: number) => {
     setIsMassSaving(true);
 
     try {
-      const originResponse = await fetch(`${getApiBaseUrl()}/api/origin-accounts`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          description: massForm.origemConta.trim(),
-          obs: massForm.observacoes.trim() || null,
-          category: 1,
-          person: massForm.origemFornecedor,
-        }),
-      });
-      const originResult = await originResponse.json();
+      let resolvedOriginId = originId;
 
-      if (!originResponse.ok || !originResult?.success) {
-        throw new Error(originResult?.error || 'Erro ao registrar origem da conta.');
+      if (!resolvedOriginId) {
+        const originResponse = await fetch(`${getApiBaseUrl()}/api/origin-accounts`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            description: payload.originDescription,
+            obs: payload.obs,
+            category: 1,
+            person: massForm.origemFornecedor,
+          }),
+        });
+        const originResult = await originResponse.json();
+
+        if (!originResponse.ok || !originResult?.success) {
+          throw new Error(originResult?.error || 'Erro ao registrar origem da conta.');
+        }
+
+        resolvedOriginId = Number(originResult.data.id);
       }
 
       const response = await fetch(`${getApiBaseUrl()}/api/accounts-payable/multiple`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          originId: Number(originResult.data.id),
+          originId: resolvedOriginId,
           description: massForm.descricao.trim(),
           accountTypeId: Number(massForm.accountTypeId),
           paymentTypeId: Number(massForm.paymentTypeId),
-          value: valorTotal,
-          installments: parcelas,
+          value: payload.valorTotal,
+          installments: payload.parcelas,
           nominalDate: massForm.dataInicio,
           dueDate: massForm.dataInicio,
-          obs: massForm.observacoes.trim() || null,
+          obs: payload.obs,
         }),
       });
       const result = await response.json();
@@ -961,7 +1080,7 @@ export default function ContasPagar() {
       }
 
       showNewestRecordsFirst();
-      toast.success(`${parcelas} conta(s) a pagar gerada(s) com sucesso.`);
+      toast.success(`${payload.parcelas} conta(s) a pagar gerada(s) com sucesso.`);
       handleCloseMassDialog();
       await fetchContas();
     } catch (error) {
@@ -969,6 +1088,33 @@ export default function ContasPagar() {
     } finally {
       setIsMassSaving(false);
     }
+  };
+
+  const saveMassContas = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const payload = validateMassForm();
+    if (!payload) return;
+
+    if (
+      massSelectedOrigin &&
+      isTrue(massSelectedOrigin.person) === massForm.origemFornecedor &&
+      normalizeOriginName(massSelectedOrigin.description || '') === normalizeOriginName(payload.originDescription)
+    ) {
+      await generateMassContas(payload, massSelectedOrigin.id);
+      return;
+    }
+
+    const match = findMassOriginMatch(payload.originDescription);
+    if (match) {
+      setPendingMassPayload(payload);
+      setMatchedMassOrigin(match.origin);
+      setMassOriginMatchKind(match.kind);
+      setMassOriginMatchOpen(true);
+      return;
+    }
+
+    await generateMassContas(payload);
   };
 
   const handleMarcarPago = (conta: ContaPagar) => {
@@ -1100,6 +1246,17 @@ export default function ContasPagar() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })),
   ];
+  const massOriginOptions = useMemo(() => {
+    const normalizedSearch = normalizeOriginName(massOriginSearchTerm);
+
+    return origins
+      .filter((origin) => Number(origin.category) === 1 && isOriginActive(origin) && isTrue(origin.person) === massForm.origemFornecedor)
+      .filter((origin) => {
+        if (!normalizedSearch) return true;
+        return normalizeOriginName(origin.description || '').includes(normalizedSearch);
+      })
+      .sort((a, b) => (a.description || `Origem ${a.id}`).localeCompare(b.description || `Origem ${b.id}`, 'pt-BR', { sensitivity: 'base' }));
+  }, [massForm.origemFornecedor, massOriginSearchTerm, origins]);
   const accountTypeFilterOptions = [
     { value: 'todos', label: 'Todos' },
     ...accountTypes.map((item) => ({
@@ -1204,26 +1361,12 @@ export default function ContasPagar() {
                       <DialogTitle>Gerar Contas a Pagar em Massa</DialogTitle>
                       <DialogDescription>Gere múltiplas contas a partir de uma origem</DialogDescription>
                     </DialogHeader>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="origemMassa" className="dark:text-slate-300">Origem da Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
-                        <Input
-                          id="origemMassa"
-                          name="origemMassa"
-                          required
-                          placeholder="Ex: Escritório Imóveis Ltda"
-                          value={massForm.origemConta}
-                          onInvalid={(e) => setRequiredMessage(e, 'Informe a origem da conta.')}
-                          onInput={clearFieldValidity}
-                          onChange={(e) => setMassForm((prev) => ({ ...prev, origemConta: e.target.value }))}
-                          className="dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
-                        />
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
                       <div className="space-y-2">
                         <Label htmlFor="origemFornecedor" className="dark:text-slate-300">Tipo da Origem</Label>
                         <Select
                           value={massForm.origemFornecedor ? 'fornecedor' : 'operacao'}
-                          onValueChange={(value) => setMassForm((prev) => ({ ...prev, origemFornecedor: value === 'fornecedor' }))}
+                          onValueChange={handleMassOriginTypeChange}
                         >
                           <SelectTrigger id="origemFornecedor" className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100">
                             <SelectValue />
@@ -1234,6 +1377,71 @@ export default function ContasPagar() {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="origemMassa" className="dark:text-slate-300">Origem da Conta <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
+                        <div ref={massOriginSelectorRef} className="relative">
+                          <Input
+                            id="origemMassa"
+                            name="origemMassa"
+                            required
+                            placeholder="Ex: Escritório Imóveis Ltda"
+                            value={massForm.origemConta}
+                            onInvalid={(e) => setRequiredMessage(e, 'Informe a origem da conta.')}
+                            onInput={clearFieldValidity}
+                            onChange={(e) => handleMassOriginTextChange(e.target.value)}
+                            className="pr-10 dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            title="Selecionar origem existente"
+                            className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 cursor-pointer p-0 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-[#314155] dark:hover:text-slate-200"
+                            onClick={() => setMassOriginSelectorOpen((prev) => !prev)}
+                          >
+                            <Search className="h-4 w-4" />
+                          </Button>
+                          {massOriginSelectorOpen && (
+                            <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-md border border-gray-200 bg-white p-2 shadow-lg dark:border-[#2f394a] dark:bg-[#1f2a37]">
+                              <div className="relative mb-2">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-400" />
+                                <Input
+                                  value={massOriginSearchTerm}
+                                  onChange={(event) => setMassOriginSearchTerm(event.target.value)}
+                                  placeholder="Buscar origem..."
+                                  className="h-8 pl-9 text-sm dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-100 dark:placeholder:text-slate-400"
+                                />
+                              </div>
+                              <div className="max-h-48 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-thumb]:cursor-default [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-white [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:cursor-default [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent dark:[&::-webkit-scrollbar-thumb]:border-[#1f2a37] dark:[&::-webkit-scrollbar-thumb]:bg-[#4b5b70]">
+                                {massOriginOptions.length === 0 ? (
+                                  <div className="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">
+                                    Nenhuma origem encontrada.
+                                  </div>
+                                ) : (
+                                  massOriginOptions.map((origin) => (
+                                    <button
+                                      key={origin.id}
+                                      type="button"
+                                      className="flex w-full cursor-pointer flex-col rounded-sm px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-[#314155]"
+                                      onClick={() => {
+                                        setMassSelectedOrigin(origin);
+                                        setMassForm((prev) => ({ ...prev, origemConta: origin.description || `Origem ${origin.id}` }));
+                                        setMassOriginSelectorOpen(false);
+                                        setMassOriginSearchTerm('');
+                                      }}
+                                    >
+                                      <span className="font-medium text-gray-800 dark:text-slate-100">{origin.description || `Origem ${origin.id}`}</span>
+                                      <span className="text-xs text-gray-500 dark:text-slate-400">Código {origin.id} - {isTrue(origin.person) ? 'Fornecedor' : 'Operação'}</span>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
                       <div className="col-span-full space-y-2">
                         <Label htmlFor="descricaoMassa" className="dark:text-slate-300">Descrição <span className="text-red-600 dark:text-[#e7a0a9]">*</span></Label>
                         <Input
@@ -1946,6 +2154,80 @@ export default function ContasPagar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={massOriginMatchOpen} onOpenChange={(open) => {
+        setMassOriginMatchOpen(open);
+        if (!open && !isMassSaving) {
+          setMassOriginMatchKind(null);
+          setMatchedMassOrigin(null);
+          setPendingMassPayload(null);
+        }
+      }}>
+        <AlertDialogContent className="dark:border-[#2f394a] dark:bg-[#1f2a37] dark:text-slate-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {massOriginMatchKind === 'exact'
+                ? 'Origem já Cadastrada'
+                : massOriginMatchKind === 'different-type'
+                  ? 'Origem já Cadastrada com Outro Tipo'
+                  : massOriginMatchKind === 'different-type-similar'
+                    ? 'Origem Semelhante com Outro Tipo'
+                  : 'Origem Semelhante Encontrada'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {massOriginMatchKind === 'exact'
+                ? 'Já existe uma origem cadastrada com este nome para contas a pagar. Deseja reutilizá-la?'
+                : massOriginMatchKind === 'different-type'
+                  ? `Já existe uma origem com este nome cadastrada como tipo ${isTrue(matchedMassOrigin?.person) ? 'Fornecedor' : 'Operação'}. Ao usar esta origem, as contas serão geradas com ${isTrue(matchedMassOrigin?.person) ? 'Fornecedor' : 'Operação'}.`
+                  : massOriginMatchKind === 'different-type-similar'
+                    ? `Encontramos uma origem semelhante cadastrada como tipo ${isTrue(matchedMassOrigin?.person) ? 'Fornecedor' : 'Operação'}. Deseja usar esta origem ou criar uma nova?`
+                  : 'Encontramos uma origem semelhante para contas a pagar. Deseja usar esta origem ou criar uma nova?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-[#2f394a] dark:bg-[#273447]">
+            <div className="grid gap-3 text-sm">
+              <div>
+                <Label className="text-gray-500 dark:text-slate-300">Código</Label>
+                <p className="mt-1 text-gray-900 dark:text-slate-100">{matchedMassOrigin?.id || '-'}</p>
+              </div>
+              <div>
+                <Label className="text-gray-500 dark:text-slate-300">Nome</Label>
+                <p className="mt-1 text-gray-900 dark:text-slate-100">{matchedMassOrigin?.description || '-'}</p>
+              </div>
+              <div>
+                <Label className="text-gray-500 dark:text-slate-300">Tipo</Label>
+                <p className="mt-1 text-gray-900 dark:text-slate-100">{isTrue(matchedMassOrigin?.person) ? 'Fornecedor' : 'Operação'}</p>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter className="gap-2 sm:justify-end">
+            <AlertDialogCancel disabled={isMassSaving} className="cursor-pointer dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]">
+              Cancelar
+            </AlertDialogCancel>
+            {(massOriginMatchKind === 'similar' || massOriginMatchKind === 'different-type-similar') && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isMassSaving || !pendingMassPayload}
+                onClick={() => pendingMassPayload && generateMassContas(pendingMassPayload)}
+                className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]"
+              >
+                Criar Nova Origem
+              </Button>
+            )}
+            <Button
+              type="button"
+              disabled={isMassSaving || !pendingMassPayload || !matchedMassOrigin}
+              onClick={() => pendingMassPayload && matchedMassOrigin && generateMassContas(pendingMassPayload, matchedMassOrigin.id)}
+              className="cursor-pointer disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 dark:bg-[#075985] dark:hover:bg-[#0e7490] dark:text-white"
+            >
+              Usar Origem Existente
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={originDialogOpen} onOpenChange={(open) => {
         setOriginDialogOpen(open);

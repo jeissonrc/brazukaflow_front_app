@@ -654,8 +654,6 @@ export default function TiposContas({ onNavigateToCategorias, onBack }: { onNavi
                 <Filter className="w-4 h-4 mr-2" />
                 Filtrar
               </Button>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
               {(searchTerm || filtroTipo !== 'Todos' || filtroStatus !== 'Todos' || filtroCategoria !== 'Todas') && (
                 <Button variant="outline" className="cursor-pointer disabled:cursor-not-allowed dark:border-[#3b4658] dark:bg-[#273447] dark:text-slate-200 dark:hover:bg-[#314155]" onClick={handleClearFilters}>
                   <X className="w-4 h-4 mr-2" />
