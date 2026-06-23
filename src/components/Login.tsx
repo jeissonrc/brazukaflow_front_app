@@ -104,6 +104,8 @@ export default function Login({ onLogin }: LoginProps) {
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
                 required
+                onInvalid={(e) => e.currentTarget.setCustomValidity('Informe o usuário.')}
+                onInput={(e) => e.currentTarget.setCustomValidity('')}
                 className="h-12"
               />
             </div>
@@ -116,6 +118,8 @@ export default function Login({ onLogin }: LoginProps) {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 required
+                onInvalid={(e) => e.currentTarget.setCustomValidity('Informe a senha.')}
+                onInput={(e) => e.currentTarget.setCustomValidity('')}
                 className="h-12"
               />
             </div>
