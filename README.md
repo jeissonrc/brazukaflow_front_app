@@ -13,6 +13,10 @@ Interface web responsiva do **BRazucaFlow**, uma plataforma para organização e
 
 O frontend oferece uma visão integrada das operações financeiras, desde o lançamento diário até relatórios gerenciais. A aplicação possui layout adaptável, temas claro e escuro, paginação, filtros avançados e controles de acesso de acordo com o perfil autenticado.
 
+## Acesso online
+
+A versão publicada está disponível em [brazukaflow.com.br](https://brazukaflow.com.br/).
+
 ## Principais recursos
 
 - home com indicadores e gráficos alimentados pela API;
@@ -54,7 +58,7 @@ As regras definitivas de autorização são aplicadas pela API.
 
 - Node.js 18 ou superior
 - npm
-- acesso à [API online do BRazucaFlow](https://bruzukaflow-api.onrender.com/)
+- acesso à [API online do BRazucaFlow](https://api.brazukaflow.com.br/)
 
 ## Configuração
 
@@ -67,7 +71,7 @@ npm install
 Crie um arquivo `.env.local` na raiz do frontend e informe o endereço da API publicada:
 
 ```env
-VITE_API_URL=https://bruzukaflow-api.onrender.com
+VITE_API_URL=https://api.brazukaflow.com.br
 ```
 
 O arquivo de ambiente não deve conter credenciais de usuário e não deve ser enviado ao Git.
@@ -128,8 +132,9 @@ Authorization: Bearer <token>
 
 Links relacionados:
 
-- [API online](https://bruzukaflow-api.onrender.com/)
-- [Documentação técnica da API](https://bruzukaflow-api.onrender.com/docs)
+- [Aplicação online](https://brazukaflow.com.br/)
+- [API online](https://api.brazukaflow.com.br/)
+- [Documentação técnica da API](https://api.brazukaflow.com.br/docs)
 - [Repositório da API](https://github.com/jeissonrc/bruzukaflow_api)
 
 ## Segurança
